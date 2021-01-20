@@ -1,0 +1,37 @@
+---
+- name: Destroy
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  no_log: "{{ molecule_no_log }}"
+  tasks:
+    - name: Delete VM
+      community.general.kubevirt_vm:
+        state: absent
+        wait: true
+        wait_timeout: 180
+        name: "{{ item.name }}"
+        namespace: "{{ item.namespace | default('default') }}"
+      with_items: "{{ molecule_yml.platforms }}"
+
+    - name: Delete cloud init
+      k8s:
+        state: absent
+        kind: Secret
+        name: "{{ item.name }}-cloud-init"
+        namespace: "{{ item.namespace | default('default') }}"
+      with_items: "{{ molecule_yml.platforms }}"
+
+    - name: Delete ssh service
+      k8s:
+        state: absent
+        kind: Service
+        name: "{{ item.name }}-ssh"
+        namespace: "{{ item.namespace | default('default') }}"
+      with_items: "{{ molecule_yml.platforms }}"
+
+    - name: Delete ssh key pair
+      file:
+        path: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
+        state: absent
+      with_items: "{{ molecule_yml.platforms  }}"
