@@ -1,0 +1,375 @@
+name: tox
+
+on:
+  create:  # is used for publishing to TestPyPI
+    tags:  # any tag regardless of its name, no branches
+      - "**"
+  push:  # only publishes pushes to the main branch to TestPyPI
+    branches:  # any integration branch but not tag
+      - "main"
+  pull_request:
+  release:
+    types:
+      - published  # It seems that you can publish directly without creating
+  schedule:
+    - cron: 1 0 * * *  # Run daily at 0:01 UTC
+
+jobs:
+  build:
+    name: ${{ matrix.tox_env }}
+    runs-on: ubuntu-20.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tox_env: lint
+          # - tox_env: docs
+          - tox_env: py36
+            PREFIX: PYTEST_REQPASS=2
+            PYTHON_BASE_IMAGE: python:3.6
+            KUBERNETES_VERSION: v1.20.0
+          - tox_env: py36-devel
+            PREFIX: PYTEST_REQPASS=2
+            PYTHON_BASE_IMAGE: python:3.6
+            KUBERNETES_VERSION: v1.20.0
+          - tox_env: py37
+            PREFIX: PYTEST_REQPASS=2
+            PYTHON_BASE_IMAGE: python:3.7
+            KUBERNETES_VERSION: v1.20.0
+          - tox_env: py38
+            PREFIX: PYTEST_REQPASS=2
+            PYTHON_BASE_IMAGE: python:3.8
+            KUBERNETES_VERSION: v1.20.0
+          - tox_env: py39
+            PREFIX: PYTEST_REQPASS=2
+            PYTHON_BASE_IMAGE: python:3.9
+            KUBERNETES_VERSION: v1.20.0
+          - tox_env: py39-devel
+            PREFIX: PYTEST_REQPASS=2
+            PYTHON_BASE_IMAGE: python:3.9
+            KUBERNETES_VERSION: v1.20.0
+          - tox_env: packaging
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Install a default Python
+        uses: actions/setup-python@v2
+        if: ${{ ! contains(matrix.tox_env, 'py') }}
+
+      - name: Install dependencies
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: |
+            python -m pip install -U pip
+            pip install tox
+        if: ${{ ! contains(matrix.tox_env, 'py') }}
+
+      - name: Run tox -e ${{ matrix.tox_env }}
+        run: |
+          echo "${{ matrix.PREFIX }} tox -e ${{ matrix.tox_env }}"
+          ${{ matrix.PREFIX }} tox -e ${{ matrix.tox_env }}
+        if: ${{ ! contains(matrix.tox_env, 'py') }}
+
+      - name: Update packages index
+        run: |
+          sudo apt-get update
+
+      - name: Install docker
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: |
+            . /etc/os-release
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+            sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+            sudo apt-get update
+            sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Install kubectl
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: |
+            curl -LO https://storage.googleapis.com/kubernetes-release/release/${{ matrix.KUBERNETES_VERSION }}/bin/linux/amd64/kubectl; chmod +x ./kubectl
+            sudo install kubectl /usr/local/bin
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Install kind
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: |
+            curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.9.0/kind-$(uname)-amd64" && chmod +x ./kind
+            sudo install kind /usr/local/bin
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Create single node Cluster
+        run: |
+          cat <<EOF | sudo kind create cluster -v7 --wait 1m --retain --config=-
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          networking:
+            ipFamily: ipv4
+          EOF
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Wait and get Cluster status
+        run: |
+          # wait network is ready
+          sudo kubectl wait --for=condition=ready pods --namespace=kube-system -l k8s-app=kube-dns
+          sudo kubectl get nodes -o wide
+          sudo kubectl get pods -A
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Install kubevirt packages requirements
+        run: |
+          sudo apt install -y qemu qemu-kvm libvirt-daemon libvirt-clients bridge-utils virt-manager libvirt-daemon-system
+          sudo systemctl restart libvirtd
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Tweak ubuntu apparmor for Kubevirt
+        run: |
+          # See : https://github.com/kubevirt/kubevirt/issues/4303
+          # Add one magic line and reload service
+          tweak_qemu_apprarmor="$(head -n -1 /etc/apparmor.d/usr.sbin.libvirtd; echo "  /usr/libexec/qemu-kvm rmix,"; tail -1 /etc/apparmor.d/usr.sbin.libvirtd)"
+          echo "$tweak_qemu_apprarmor" | sudo dd of=/etc/apparmor.d/usr.sbin.libvirtd
+          sudo systemctl reload apparmor.service
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Install kubevirt
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: |
+            sudo kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.36.0/kubevirt-operator.yaml
+            sudo kubectl create configmap kubevirt-config -n kubevirt --from-literal debug.useEmulation=true
+            sudo kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.36.0/kubevirt-cr.yaml
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Install virtcl
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: |
+            export ARCH=linux-amd64
+            curl -L -o virtctl https://github.com/kubevirt/kubevirt/releases/download/v0.36.0/virtctl-v0.36.0-linux-amd64
+            chmod +x virtctl
+            sudo install virtctl /usr/local/bin
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Build molecule test container for ${{ matrix.tox_env }}
+        run: |
+          docker build --build-arg PYTHON_BASE_IMAGE=${{ matrix.PYTHON_BASE_IMAGE }} --build-arg KUBERNETES_VERSION=${{ matrix.KUBERNETES_VERSION }} . --file tools/Dockerfile  -t molecule_kubevirt_${{ matrix.tox_env }}:latest
+          # TODO : kind load is slow : set a private registry, as described here https://kind.sigs.k8s.io/docs/user/local-registry/
+          sudo kind load docker-image molecule_kubevirt_${{ matrix.tox_env }}:latest
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Push molecule test to Kind
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: |
+            sudo kind load docker-image molecule_kubevirt_${{ matrix.tox_env }}:latest
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Install kail
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: |
+            curl -SL https://github.com/boz/kail/releases/download/v0.15.0/kail_0.15.0_linux_amd64.tar.gz -o kail.tar.gz
+            tar xf kail.tar.gz
+            sudo install kail /usr/local/bin
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Wait and get kubevirt status
+        run: |
+          # wait network is ready
+          sudo kubectl wait --for=condition=ready pods --namespace=kubevirt -l kubevirt.io=virt-operator
+          sudo kubectl wait --for=condition=ready pods --namespace=kubevirt -l kubevirt.io=virt-api || true
+          sudo kubectl wait --for=condition=ready pods --namespace=kubevirt -l kubevirt.io=virt-controller || true
+          sudo kubectl wait --for=condition=ready pods --namespace=kubevirt -l kubevirt.io=virt-handler || true
+          sudo kubectl get nodes -o wide
+          sudo kubectl get pods -A
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Prepare Job
+        run: |
+          # Service Account for Job
+          sudo kubectl create -f tools/test-rolebinding.yaml
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Launch background log scripts
+        run: |
+          # Kail monitors any logs from default namespace
+          sudo kail -n default 2>&1 > /tmp/kail.log || true &
+          # Infinite script waits for new VMs up and fetch logs from console
+          (sudo tools/log_console.sh || true ) &
+          # Event router reports any event as log, a great help for troubleshooting since Kind exports all running Pods logs
+          sudo kubectl create -f https://raw.githubusercontent.com/heptiolabs/eventrouter/master/yaml/eventrouter.yaml
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Launch test
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 25
+          max_attempts: 3
+          on_retry_command: |
+            sudo kubectl delete pods --all || true
+            sudo kubectl delete configmaps --all || true
+            sudo kubectl delete job --all || true
+          command: |
+            # Configmap will be waitinig untill it is deleted, telling one Pod ended the Job
+            sudo kubectl create configmap molecule-job-running --from-literal status=Started
+            cat <<EOF | sudo kubectl apply -f -
+            ---
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: molecule
+            spec:
+              template:
+                spec:
+                  serviceAccountName: molecule-kubevirt
+                  containers:
+                  - name: molecule
+                    image: molecule_kubevirt_${{ matrix.tox_env }}
+                    imagePullPolicy: IfNotPresent
+                    command: [ "/bin/bash", "-c", "--" ]
+                    args: ["(tox -e ${{ matrix.tox_env }} -c /opt/molecule_kubevirt/tox.ini ; kubectl create configmap molecule-result --from-literal exitCode=\$?); kubectl delete configmap molecule-job-running"]
+                    env:
+                      - name: PYTEST_REQPASS
+                        value: "2"
+                  restartPolicy: Never
+              backoffLimit: 0
+            EOF
+
+            echo "Job launched"
+
+            # Wait for molecule Job Pod to start
+            until (sudo kubectl get pods -l job-name=molecule | grep molecule); do echo "Wait molecule pod to start"; sleep 5; done
+
+            sudo kubectl wait --for=condition=ready pods -l job-name=molecule --namespace default
+            echo "Molecule pod is now running, waiting..."
+
+            # Wait for molecule Job to delete configmap, notifying one Job Pod ran till the end, whatever the result
+            sudo kubectl wait --for delete --timeout=20m  configmap/molecule-job-running
+
+            # Get molecule tests results and exit accordingly
+            MOLECULE_RESULT=$(sudo kubectl get configmap molecule-result -o "jsonpath={.data['exitCode']}")
+            if [ ! "${MOLECULE_RESULT}" == "0" ]; then echo "Test non ok : ${MOLECULE_RESULT}"; exit 1; fi
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Dump and export logs
+        if: always()
+        run: |
+          mkdir -p ${LOG_DIR} || true
+          echo "** Events"
+          sudo kubectl get events | tee ${LOG_DIR}/events.txt || true
+          echo "** Jobs"
+          sudo kubectl describe jobs | tee  ${LOG_DIR}/jobs.txt || true
+          echo "** Configmap"
+          sudo kubectl describe cm | tee ${LOG_DIR}/cm.txt || true
+          echo "** Console log"
+          sudo cat /tmp/virtcl-console*.log || true
+
+          sudo cp /tmp/kail.log ${LOG_DIR} || true
+          sudo cp /tmp/virtcl-console*.log ${LOG_DIR} || true
+          sudo dmesg > ${LOG_DIR}/dmesg.txt || true
+          sudo kind export logs ${LOG_DIR} || true
+          sudo journalctl | cat > ${LOG_DIR}/journalctl.txt || true
+          sudo chown -R $USER:$USER ${LOG_DIR} || true
+        env:
+          LOG_DIR: /tmp/molecule-kubevirt/logs
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: molecule-kubevirt-${{ matrix.tox_env }}-${{ github.run_id }}
+          path: /tmp/molecule-kubevirt/logs
+
+  publish:
+    name: Publish to PyPI registry
+    needs:
+      - build
+    runs-on: ubuntu-latest
+
+    env:
+      PY_COLORS: 1
+      TOXENV: packaging
+
+    steps:
+      - name: Switch to using Python 3.6 by default
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
+      - name: Install tox
+        run: python -m pip install --user tox
+      - name: Check out src from Git
+        uses: actions/checkout@v2
+        with:
+          # Get shallow Git history (default) for release events
+          # but have a complete clone for any other workflows.
+          # Both options fetch tags but since we're going to remove
+          # one from HEAD in non-create-tag workflows, we need full
+          # history for them.
+          fetch-depth: >-
+            ${{
+              (
+                (
+                  github.event_name == 'create' &&
+                  github.event.ref_type == 'tag'
+                ) ||
+                github.event_name == 'release'
+              ) &&
+              1 || 0
+            }}
+      - name: Drop Git tags from HEAD for non-tag-create and non-release events
+        if: >-
+          (
+            github.event_name != 'create' ||
+            github.event.ref_type != 'tag'
+          ) &&
+          github.event_name != 'release'
+        run: >-
+          git tag --points-at HEAD
+          |
+          xargs git tag --delete
+      - name: Build dists
+        run: python -m tox
+      - name: Publish to test.pypi.org
+        if: >-
+          (
+            github.event_name == 'push' &&
+            github.ref == format(
+              'refs/heads/{0}', github.event.repository.default_branch
+            )
+          ) ||
+          (
+            github.event_name == 'create' &&
+            github.event.ref_type == 'tag'
+          )
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          password: ${{ secrets.testpypi_password }}
+          repository_url: https://test.pypi.org/legacy/
+      - name: Publish to pypi.org
+        if: >-  # "create" workflows run separately from "push" & "pull_request"
+          github.event_name == 'release'
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          password: ${{ secrets.pypi_password }}

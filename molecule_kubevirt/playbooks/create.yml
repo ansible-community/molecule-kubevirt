@@ -1,0 +1,151 @@
+---
+- name: Create
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  no_log: "{{ molecule_no_log }}"
+  vars:
+    molecule_labels:
+      owner: molecule
+  tasks:
+    - name: Create ssh key pair
+      openssh_keypair:
+        path: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
+        size: 1024
+        type: rsa
+      with_items: "{{ molecule_yml.platforms  }}"
+
+    - name: Create cloud init with ssh identity for molecule user
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ item.name }}-cloud-init"
+            namespace: "{{ item.namespace | default('default') }}"
+          type: Opaque
+          stringData:
+            userdata: |-
+              #cloud-config
+              users:
+                - name: {{ item.user_name | default('molecule') }}
+                  sudo: ALL=(ALL) NOPASSWD:ALL
+                  plain_text_passwd: molecule
+                  lock_passwd: false
+                  ssh_authorized_keys:
+                    - {{ lookup('file', molecule_ephemeral_directory + '/identity_'+ item.name + '.pub' ) }}
+      with_items: "{{ molecule_yml.platforms  }}"
+
+    - name: Create VM block
+      block:
+        - name: Create virtual machine and start it
+          community.general.kubevirt_vm:
+            state: running
+            wait: true
+            wait_timeout: "{{ item.wait_timeout | default(300) }}"
+            name: "{{ item.name }}"
+            namespace: "{{ item.namespace | default('default') }}"
+            memory: "{{ item.memory | default('2Gi') }}"
+            cpu_cores: "{{ item.cpu_cores | default(omit) }}"
+            machine_type: "{{ item.machine_type | default('q35') }}"
+
+            interfaces:
+              - name: default
+                masquerade: {}
+                ports:
+                  - port: 22
+                network:
+                  pod: {}
+
+            cloud_init_nocloud:
+              secretRef:
+                name: "{{ item.name }}-cloud-init"
+
+            cpu_model: "{{ item.cpu_model | default(omit) }}"
+            headless: "{{ item.headless | default(omit) }}"
+            hugepage_size: "{{ item.hugepage_size | default(omit) }}"
+
+            cpu_limit: "{{ item.cpu_limit | default(omit) }}"
+            cpu_shares: "{{ item.cpu_shares | default(omit) }}"
+            ephemeral: "{{ item.ephemeral | default(omit) }}"
+
+            disks:
+              - name: "{{ item.name }}-container-disk"
+                volume:
+                  containerDisk:
+                    # FIXME : do not rely on this repo => what default could be set?
+                    image: "{{ item.image | default('quay.io/jseguillon/kubevirt-images:centos-7-x86_64-genericcloud-2009') }}"
+                    path: "{{ item.image_path | default(omit) }}"
+                    imagePullPolicy: "IfNotPresent"
+                disk:
+                  bus: virtio
+          with_items: "{{ molecule_yml.platforms  }}"
+          register: server
+
+      rescue:
+        - name: Failed to get running VM - Get VM and VMI
+          k8s_info:
+            kind: "{{ item }}"
+            api_version: kubevirt.io/v1alpha3
+            namespace: "{{ item.namespace | default('default') }}"
+          with_items:
+            - VirtualMachine
+            - VirtualMachineInstance
+          register: vm_info
+
+        - name: Failed to get running VM - Dump VM and VMI
+          fail:
+            msg: "{{ vm_info }}"
+
+    - name: Create ssh service
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ item.name }}"
+            namespace: "{{ item.namespace | default('default') }}"
+          spec:
+            ports:
+              - port: 22
+                protocol: TCP
+                targetPort: 22
+            selector:
+              vm.cnv.io/name: "{{ item.name }}"
+            type: ClusterIP
+      register: service
+      with_items: "{{ molecule_yml.platforms  }}"
+
+    # Via Kubernetes Services, VM can be accessed via its name.namespace.svc
+    # FIXME : this code from vagrant molecule may not be the best for kubevirt
+    - name: Populate instance config dict
+      set_fact:
+        instance_conf_dict: |
+          { "instance": "{{ item.kubevirt_vm.metadata.name }}",
+            "address": "{{ item.kubevirt_vm.metadata.name }}.{{ item.kubevirt_vm.metadata.namespace }}.svc",
+            "user": "{{ item.user_name | default('molecule') }}",
+            "port": "22",
+            "identity_file": "{{ molecule_ephemeral_directory }}/identity_{{ item.kubevirt_vm.metadata.name }}"
+          }
+      with_items: "{{ server.results }}"
+      register: instance_config_dict
+
+    - name: Convert instance config dict to a list
+      set_fact:
+        instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
+
+    - name: Dump instance config
+      copy:
+        content: "{{ instance_conf | to_json | from_json | to_yaml }}"
+        dest: "{{ molecule_instance_config }}"
+        mode: 0600
+
+    - name: Test ssh access
+      wait_for:
+        timeout: "{{ item['ansible_facts']['instance_conf_dict']['ssh_timeout'] | default('300') }}"
+        port: "{{ item['ansible_facts']['instance_conf_dict']['port'] | default('22') }}"
+        host: "{{ item['ansible_facts']['instance_conf_dict']['address'] }}"
+        delay: 10
+      with_items: "{{ instance_config_dict.results }}"
