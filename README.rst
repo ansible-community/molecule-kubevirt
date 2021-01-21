@@ -4,11 +4,16 @@ Molecule kubevirt Plugin
 
 **Very alpha version - All configuration fields and behaviours may be subject to breaking changes**
 
-Ansible molecule kubevirt runners require :
+Ansible molecule-kubevirt runners require :
 
 - ansible-galaxy collection install community.general
 - ansible-galaxy collection install community.crypto
 - ansible-galaxy collection install community.kubernetes.git
+
+Also need access to Kubernetes, via user kubeconfig or ServiceAccount. Minimum authorizations :
+
+- ClusterRole kubevirt.io:edit
+- POST and EGT on Services
 
 .. image:: https://badge.fury.io/py/molecule-kubevirt.svg
    :target: https://badge.fury.io/py/molecule-kubevirt
