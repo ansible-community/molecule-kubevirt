@@ -2,20 +2,12 @@
 Molecule kubevirt Plugin
 ************************
 
-! Very alpha version - All configuration fields and behaviours may be subject to breaking changes !
-
-Ansible runner requires :
-- ansible-galaxy collection install community.general
-- ansible-galaxy collection install community.crypto
-- ansible-galaxy collection install community.kubernetes.git
-- pip install openshift jmespath
-
 .. image:: https://badge.fury.io/py/molecule-kubevirt.svg
    :target: https://badge.fury.io/py/molecule-kubevirt
    :alt: PyPI Package
 
-.. image:: https://github.com/ansible-community/molecule-kubevirt/workflows/tox/badge.svg
-   :target: https://github.com/ansible-community/molecule-kubevirt/actions
+.. image:: https://github.com/jseguillon/molecule-kubevirt/workflows/tox/badge.svg
+   :target: https://github.com/jseguillon/molecule-kubevirt/actions
 
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
    :target: https://github.com/python/black
@@ -25,10 +17,21 @@ Ansible runner requires :
    :target: LICENSE
    :alt: Repository License
 
-Molecule kubevirt Plugin is designed to allow use kubevirt containers for
+Ansible molecule-kubevirt runners require :
+
+- ansible-galaxy collection install community.general
+- ansible-galaxy collection install community.crypto
+- ansible-galaxy collection install community.kubernetes.git
+
+Also need access to Kubernetes, via user kubeconfig or ServiceAccount. Minimum authorizations :
+
+- ClusterRole kubevirt.io:edit
+- POST and EGT on Services
+
+Molecule kubevirt Plugin is designed to allow use Kubevirt containers for
 provisioning test resources.
 
-Please note that this driver is currently in its early stage of development.
+**Very alpha version - All configuration fields and behaviours may be subject to breaking changes**
 
 .. _get-involved:
 
