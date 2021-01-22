@@ -17,11 +17,12 @@ Molecule kubevirt Plugin
    :target: LICENSE
    :alt: Repository License
 
-Ansible molecule-kubevirt runners require :
+Ansible molecule-kubevirt runners require additional dependencies.
 
-- community.general
-- community.crypto
-- community.kubernetes.git
+.. code-block:: shell
+
+    ansible-galaxy install -r requirements.yml
+
 
 Also need access to Kubernetes, via user kubeconfig or ServiceAccount. Minimum authorizations :
 
