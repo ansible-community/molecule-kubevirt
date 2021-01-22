@@ -22,3 +22,4 @@ pip-wheel-metadata
 docs/docstree
 .docker
 venv/
+.venv/
