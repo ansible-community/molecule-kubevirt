@@ -1,5 +1,5 @@
 ************************
-Molecule kubevirt Plugin
+Molecule KubeVirt Plugin
 ************************
 
 .. image:: https://badge.fury.io/py/molecule-kubevirt.svg
@@ -17,21 +17,25 @@ Molecule kubevirt Plugin
    :target: LICENSE
    :alt: Repository License
 
-Ansible molecule-kubevirt runners require :
+Molecule KubeVirt Plugin is designed to allow use [KubeVirt](https://kubevirt.io/) containers for provisioning test resources.
+
+**Very alpha version - All configuration fields and behaviours may be subject to breaking changes**
+
+.. _usage:
+
+Usage
+=====
+
+Ansible molecule-kubevirt runners require:
 
 - ansible-galaxy collection install community.general
 - ansible-galaxy collection install community.crypto
 - ansible-galaxy collection install community.kubernetes.git
 
-Also need access to Kubernetes, via user kubeconfig or ServiceAccount. Minimum authorizations :
+Also need access to a Kubernetes cluster, via user kubeconfig or ServiceAccount. Minimum authorizations:
 
-- ClusterRole kubevirt.io:edit
+- ClusterRole [`kubevirt.io:edit`](https://kubevirt.io/user-guide/#/installation/authorization?id=kubevirt-default-rbac-clusterroles)
 - POST and EGT on Services
-
-Molecule kubevirt Plugin is designed to allow use Kubevirt containers for
-provisioning test resources.
-
-**Very alpha version - All configuration fields and behaviours may be subject to breaking changes**
 
 .. _get-involved:
 
@@ -58,7 +62,7 @@ License
 
 The `MIT`_ License.
 
-.. _`MIT`: https://github.com/ansible/molecule/blob/master/LICENSE
+.. _`MIT`: https://github.com/jseguillon/molecule-kubevirt/blob/master/LICENSE
 
 The logo is licensed under the `Creative Commons NoDerivatives 4.0 License`_.
 
