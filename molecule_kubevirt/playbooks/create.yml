@@ -40,7 +40,7 @@
     - name: Create VM block
       block:
         - name: Create virtual machine and start it
-          community.general.kubevirt_vm:
+          community.kubevirt.kubevirt_vm:
             state: running
             wait: true
             wait_timeout: "{{ item.wait_timeout | default(300) }}"

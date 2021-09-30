@@ -6,7 +6,7 @@
   no_log: "{{ molecule_no_log }}"
   tasks:
     - name: Delete VM
-      community.general.kubevirt_vm:
+      community.kubevirt.kubevirt_vm:
         state: absent
         wait: true
         wait_timeout: 180
