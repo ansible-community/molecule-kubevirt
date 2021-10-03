@@ -127,9 +127,9 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           command: |
-            kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.36.0/kubevirt-operator.yaml
+            kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.45.0/kubevirt-operator.yaml
             kubectl create configmap kubevirt-config -n kubevirt --from-literal debug.useEmulation=true
-            kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.36.0/kubevirt-cr.yaml
+            kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.45.0/kubevirt-cr.yaml
         if: ${{ contains(matrix.tox_env, 'py') }}
 
       - name: Install virtcl
@@ -139,7 +139,7 @@ jobs:
           max_attempts: 3
           command: |
             export ARCH=linux-amd64
-            curl -L -o virtctl https://github.com/kubevirt/kubevirt/releases/download/v0.36.0/virtctl-v0.36.0-linux-amd64
+            curl -L -o virtctl https://github.com/kubevirt/kubevirt/releases/download/v0.45.0/virtctl-v0.36.0-linux-amd64
             chmod +x virtctl
             sudo install virtctl /usr/local/bin
         if: ${{ contains(matrix.tox_env, 'py') }}
