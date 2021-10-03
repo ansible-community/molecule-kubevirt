@@ -112,15 +112,6 @@ jobs:
           sudo systemctl restart libvirtd
         if: ${{ contains(matrix.tox_env, 'py') }}
 
-      - name: Tweak ubuntu apparmor for Kubevirt
-        run: |
-          # See : https://github.com/kubevirt/kubevirt/issues/4303
-          # Add one magic line and reload service
-          tweak_qemu_apprarmor="$(head -n -1 /etc/apparmor.d/usr.sbin.libvirtd; echo "  /usr/libexec/qemu-kvm rmix,"; tail -1 /etc/apparmor.d/usr.sbin.libvirtd)"
-          echo "$tweak_qemu_apprarmor" | sudo dd of=/etc/apparmor.d/usr.sbin.libvirtd
-          sudo systemctl reload apparmor.service
-        if: ${{ contains(matrix.tox_env, 'py') }}
-
       - name: Install kubevirt
         uses: nick-invision/retry@v2
         with:
