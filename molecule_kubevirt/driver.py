@@ -162,7 +162,6 @@ class KubeVirt(Driver):
             # instance_config is not on disk.
             return {}
 
-  
     def sanity_checks(self):
         # FIXME : What kind of sanity should be done ?
         # => testing connection to kubernetes ? testing kubevirt is OK ?
