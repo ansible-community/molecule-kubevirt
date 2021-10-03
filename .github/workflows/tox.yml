@@ -186,8 +186,9 @@ jobs:
           kail -n default 2>&1 > /tmp/kail.log || true &
           # Infinite script waits for new VMs up and fetch logs from console
           (tools/log_console.sh || true ) &
-          # Event router reports any event as log, a great help for troubleshooting since Kind exports all running Pods logs
-          kubectl create -f https://raw.githubusercontent.com/heptiolabs/eventrouter/master/yaml/eventrouter.yaml
+          # Event router reports any event as log, a great help for troubleshooting since minikube exports all running Pods logs
+          # FIXME: no more working: https://github.com/jseguillon/molecule-kubevirt/runs/3795920362?check_suite_focus=true
+          # kubectl create -f https://raw.githubusercontent.com/heptiolabs/eventrouter/master/yaml/eventrouter.yaml
         if: ${{ contains(matrix.tox_env, 'py') }}
 
       - name: Launch test
