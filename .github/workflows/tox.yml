@@ -40,7 +40,7 @@ jobs:
           - tox_env: py38
             PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.8
-            KUBERNETES_VERSION: v1.22.2           
+            KUBERNETES_VERSION: v1.22.2
           - tox_env: py39
             PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.9
