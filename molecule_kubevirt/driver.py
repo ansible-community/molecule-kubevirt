@@ -23,7 +23,6 @@ from __future__ import absolute_import
 
 from molecule import logger, util
 from molecule.api import Driver
-from molecule.util import lru_cache
 
 log = logger.get_logger(__name__)
 
@@ -163,7 +162,6 @@ class KubeVirt(Driver):
             # instance_config is not on disk.
             return {}
 
-    @lru_cache()
     def sanity_checks(self):
         # FIXME : What kind of sanity should be done ?
         # => testing connection to kubernetes ? testing kubevirt is OK ?

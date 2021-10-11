@@ -17,7 +17,7 @@ on:
 jobs:
   build:
     name: ${{ matrix.tox_env }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -25,30 +25,30 @@ jobs:
         include:
           - tox_env: lint
           # - tox_env: docs
-          - tox_env: py36
+          - tox_env: py36-ansible_2
             PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.6
-            KUBERNETES_VERSION: v1.20.0
-          - tox_env: py36-devel
+            KUBERNETES_VERSION: v1.22.2
+          - tox_env: py36-ansible_2-devel
             PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.6
-            KUBERNETES_VERSION: v1.20.0
-          - tox_env: py37
+            KUBERNETES_VERSION: v1.22.2
+          - tox_env: py37-ansible_3
             PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.7
-            KUBERNETES_VERSION: v1.20.0
-          - tox_env: py38
+            KUBERNETES_VERSION: v1.22.2
+          - tox_env: py38-ansible_4
             PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.8
-            KUBERNETES_VERSION: v1.20.0
-          - tox_env: py39
+            KUBERNETES_VERSION: v1.22.2
+          - tox_env: py39-ansible_2
             PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.9
-            KUBERNETES_VERSION: v1.20.0
-          - tox_env: py39-devel
+            KUBERNETES_VERSION: v1.22.2
+          - tox_env: py39-ansible_2-devel
             PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.9
-            KUBERNETES_VERSION: v1.20.0
+            KUBERNETES_VERSION: v1.22.2
           - tox_env: packaging
 
     steps:
@@ -102,33 +102,11 @@ jobs:
             sudo install kubectl /usr/local/bin
         if: ${{ contains(matrix.tox_env, 'py') }}
 
-      - name: Install kind
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          command: |
-            curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.9.0/kind-$(uname)-amd64" && chmod +x ./kind
-            sudo install kind /usr/local/bin
-        if: ${{ contains(matrix.tox_env, 'py') }}
-
-      - name: Create single node Cluster
+      - name: start minikube
         run: |
-          cat <<EOF | kind create cluster -v7 --wait 1m --retain --config=-
-          kind: Cluster
-          apiVersion: kind.x-k8s.io/v1alpha4
-          networking:
-            ipFamily: ipv4
-          EOF
-        if: ${{ contains(matrix.tox_env, 'py') }}
-
-      - name: Wait and get Cluster status
-        run: |
-          # wait network is ready
-          kubectl wait --for=condition=ready pods --namespace=kube-system -l k8s-app=kube-dns
-          kubectl get nodes -o wide
-          kubectl get pods -A
-        if: ${{ contains(matrix.tox_env, 'py') }}
+          curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          sudo install minikube-linux-amd64 /usr/local/bin/minikube
+          minikube start
 
       - name: Install kubevirt packages requirements
         run: |
@@ -151,9 +129,9 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           command: |
-            kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.36.0/kubevirt-operator.yaml
+            kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.45.0/kubevirt-operator.yaml
             kubectl create configmap kubevirt-config -n kubevirt --from-literal debug.useEmulation=true
-            kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.36.0/kubevirt-cr.yaml
+            kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.45.0/kubevirt-cr.yaml
         if: ${{ contains(matrix.tox_env, 'py') }}
 
       - name: Install virtcl
@@ -163,7 +141,7 @@ jobs:
           max_attempts: 3
           command: |
             export ARCH=linux-amd64
-            curl -L -o virtctl https://github.com/kubevirt/kubevirt/releases/download/v0.36.0/virtctl-v0.36.0-linux-amd64
+            curl -L -o virtctl https://github.com/kubevirt/kubevirt/releases/download/v0.45.0/virtctl-v0.45.0-linux-amd64
             chmod +x virtctl
             sudo install virtctl /usr/local/bin
         if: ${{ contains(matrix.tox_env, 'py') }}
@@ -171,17 +149,16 @@ jobs:
       - name: Build molecule test container for ${{ matrix.tox_env }}
         run: |
           docker build --build-arg PYTHON_BASE_IMAGE=${{ matrix.PYTHON_BASE_IMAGE }} --build-arg KUBERNETES_VERSION=${{ matrix.KUBERNETES_VERSION }} . --file tools/Dockerfile  -t molecule_kubevirt_${{ matrix.tox_env }}:latest
-          # TODO : kind load is slow : set a private registry, as described here https://kind.sigs.k8s.io/docs/user/local-registry/
-          kind load docker-image molecule_kubevirt_${{ matrix.tox_env }}:latest
         if: ${{ contains(matrix.tox_env, 'py') }}
 
-      - name: Push molecule test to Kind
+      - name: Push molecule test to minikube
         uses: nick-invision/retry@v2
         with:
           timeout_minutes: 5
           max_attempts: 3
           command: |
-            kind load docker-image molecule_kubevirt_${{ matrix.tox_env }}:latest
+            # TODO : minkube load is slow : set a private registry ?
+            minikube image load molecule_kubevirt_${{ matrix.tox_env }}:latest
         if: ${{ contains(matrix.tox_env, 'py') }}
 
       - name: Install kail
@@ -218,8 +195,9 @@ jobs:
           kail -n default 2>&1 > /tmp/kail.log || true &
           # Infinite script waits for new VMs up and fetch logs from console
           (tools/log_console.sh || true ) &
-          # Event router reports any event as log, a great help for troubleshooting since Kind exports all running Pods logs
-          kubectl create -f https://raw.githubusercontent.com/heptiolabs/eventrouter/master/yaml/eventrouter.yaml
+          # Event router reports any event as log, a great help for troubleshooting since minikube exports all running Pods logs
+          # FIXME: no more working: https://github.com/jseguillon/molecule-kubevirt/runs/3795920362?check_suite_focus=true
+          # kubectl create -f https://raw.githubusercontent.com/heptiolabs/eventrouter/master/yaml/eventrouter.yaml
         if: ${{ contains(matrix.tox_env, 'py') }}
 
       - name: Launch test
@@ -289,7 +267,7 @@ jobs:
           cp /tmp/kail.log ${LOG_DIR} || true
           cp /tmp/virtcl-console*.log ${LOG_DIR} || true
           sudo dmesg > ${LOG_DIR}/dmesg.txt || true
-          kind export logs ${LOG_DIR} || true
+          minikube logs --file ${LOG_DIR}/minikube.log || true
           sudo journalctl | cat > ${LOG_DIR}/journalctl.txt || true
           sudo chown -R $USER:$USER ${LOG_DIR} || true
         env:
