@@ -17,27 +17,65 @@ Molecule KubeVirt Plugin
    :target: LICENSE
    :alt: Repository License
 
-Molecule KubeVirt Plugin is designed to allow use [KubeVirt](https://kubevirt.io/) containers for provisioning test resources.
+Molecule KubeVirt Plugin is designed to allow use of KubeVirt_ containers for provisioning test resources.
 
 **Very alpha version - All configuration fields and behaviours may be subject to breaking changes**
 
-.. _usage:
+.. _`KubeVirt`: https://kubevirt.io
+
+Scope
+=====
+
+Molecule-kubevirt enables running ansible roles tests in a kubernetes cluster.
 
 Usage
 =====
 
-Ansible molecule-kubevirt runners require:
+To use this plugin, you'll need to set the ``driver`` and ``platform``
+variables in your ``molecule.yml``. Here's a simple example using a home made centos docker image for KubeVirt:
 
-- ansible-galaxy collection install community.general
-- ansible-galaxy collection install community.crypto
-- ansible-galaxy collection install community.kubernetes.git
+.. code-block:: yaml
 
-Also need access to a Kubernetes cluster, via user kubeconfig or ServiceAccount. Minimum authorizations:
+  driver:
+    name: kubevirt
+  platforms:
+    - name: instance
+      image: quay.io/jseguillon/kubevirt-images:centos-7-x86_64-genericcloud-2009
 
-- ClusterRole [`kubevirt.io:edit`](https://kubevirt.io/user-guide/#/installation/authorization?id=kubevirt-default-rbac-clusterroles)
-- POST and EGT on Services
+This driver also requires molecule to access Kubernetes API. See test-rolebinding_ file.
 
-.. _get-involved:
+.. _`test-rolebinding`: /tools/test-rolebinding.yaml
+
+
+Installation
+============
+
+Ansible
+-------
+
+This driver supports Ansible 2, 3 and 4.
+
+Ansible 2 requires install of comunity.kubevirt plus strict python requirements pinning:
+
+.. code-block:: shell
+
+  ansible-galaxy install git+https://github.com/ansible-collections/community.general.git
+  python3 -m pip install openshift==0.11.2 kubernetes==11.0.0
+
+**No depedency required for Ansible >= 3**
+
+
+KubeVirt
+--------
+
+Get access to a Kubernetes cluster then install KubeVirt for `kind <https://kubevirt.io/quickstart_kind/>`_ or `minkube <https://kubevirt.io/quickstart_minikube/>`_ or `cloud providers <https://kubevirt.io/quickstart_cloud/>`_
+
+
+Demo
+====
+
+Testing nginx ansible role with KubeVirt, via github actions: `jseguillon/ansible-role-nginx <https://github.com/jseguillon/ansible-role-nginx>`_
+
 
 Get Involved
 ============
