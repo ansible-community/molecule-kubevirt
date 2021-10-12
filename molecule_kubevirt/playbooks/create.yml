@@ -51,6 +51,73 @@
       loop_control:
         label: "{{ item.name }}"
 
+    # FIXME : dont forget same on delete
+    - name: Compute disk facts - container disk case
+      set_fact:
+        disks: "{{ disks | default({}) | combine ({ item.name: disk }) }}"
+      when: "not item.cdi_source_http_url | default(None)"
+      vars:
+        disk:
+          - name: "{{ item.name }}-container-disk"
+            volume:
+              containerDisk:
+                # FIXME : do not rely on this repo => what default could be set?
+                image: "{{ item.image | default('quay.io/jseguillon/kubevirt-images:centos-7-x86_64-genericcloud-2009') }}"
+                path: "{{ item.image_path | default(omit) }}"
+                imagePullPolicy: "IfNotPresent"
+            disk:
+              bus: virtio
+      with_items: "{{ molecule_yml.platforms  }}"
+
+    # FIXME: Also need delete
+    - name: Compute disk facts - CDI url case
+      set_fact:
+        disks: "{{ disks | default({}) | combine ({ item.name: disk }) }}"
+      vars:
+        disk:
+          - name: "{{ item.name }}-cdi-disk"
+            volume:
+              persistentVolumeClaim:
+                claimName: "{{ item.name }}"
+              disk:
+                bus: virtio
+      when: "item.cdi_source_http_url | default(None)"
+      with_items: "{{ molecule_yml.platforms  }}"
+
+    # TODO: use async / poll
+    # TODO: fail if both image and cdi are given in platform config
+    - name: Import data via CDI
+      when: "item.cdi_source_http_url | default(None)"
+      block:
+        - name: Create a PVC and import data from an external source
+          community.kubevirt.kubevirt_pvc:
+            name: "{{ item.name }}"
+            namespace: "{{ item.namespace | default('default') }}"
+            size: "{{ item.cdi_pvc_size }}"
+            access_modes:
+              - ReadWriteOnce
+            cdi_source:
+              http:
+                url:  "{{ item.cdi_source_http_url }}"
+              # If the URL points to a tar.gz containing the disk image, set to archive:
+              content_type: "{{ item.cdi_source_content_type | default(omit) }}"
+            wait: true
+            # FIXME: need override in platforms config
+            wait_timeout: 900
+          with_items: "{{ molecule_yml.platforms  }}"
+
+      rescue:
+        - name: Failed to import URL via CDI
+          k8s_info:
+            kind: "PersistentVolumeClaim"
+            namespace: "{{ item.namespace | default('default') }}"
+          register: pvc_info
+
+        - name: Failed to import URL via CDI - Dump
+          fail:
+            msg: "{{ pvc_info }}"
+
+
     - name: Async create virtual machine and start it
       community.kubevirt.kubevirt_vm:
         state: running
@@ -82,15 +149,8 @@
         cpu_shares: "{{ item.cpu_shares | default(omit) }}"
         ephemeral: "{{ item.ephemeral | default(omit) }}"
 
-        disks:
-          - name: "{{ item.name }}-container-disk"
-            volume:
-              containerDisk:
-                image: "{{ item.image | default(default_vm_disk_image) }}"
-                path: "{{ item.image_path | default(omit) }}"
-                imagePullPolicy: "IfNotPresent"
-            disk:
-              bus: virtio
+        disks: "{{ disks[item.name] }}"
+
       loop: "{{ molecule_yml.platforms }}"
       loop_control:
         label: "{{ item.name }}"

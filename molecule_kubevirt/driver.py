@@ -50,6 +50,8 @@ class KubeVirt(Driver):
             namespace: default
             wait_timeout: 300
             memory: 2Gi
+            cdi_source_http_url: https://any.cdi.supported/endpoint
+            cdi_pvc_size: 10Gi
             cpu_cores: (omit)
             machine_type: q35
             cpu_model: (omit)

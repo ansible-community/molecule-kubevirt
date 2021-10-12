@@ -26,6 +26,14 @@
       loop_control:
         label: "{{ item.name }}"
 
+    - name: Delete PVC
+      k8s:
+        state: absent
+        kind: PersistentVolumeClaim
+        name: "{{ item.name }}-container-disk"
+        namespace: "{{ item.namespace | default('default') }}"
+      with_items: "{{ molecule_yml.platforms }}"
+
     - name: Delete ssh service
       k8s:
         state: absent
