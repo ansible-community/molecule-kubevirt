@@ -123,7 +123,7 @@ jobs:
           sudo systemctl reload apparmor.service
         if: ${{ contains(matrix.tox_env, 'py') }}
 
-      - name: Install kubevirt
+      - name: Install KubeVirt
         uses: nick-invision/retry@v2
         with:
           timeout_minutes: 5
@@ -132,6 +132,17 @@ jobs:
             kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.45.0/kubevirt-operator.yaml
             kubectl create configmap kubevirt-config -n kubevirt --from-literal debug.useEmulation=true
             kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.45.0/kubevirt-cr.yaml
+        if: ${{ contains(matrix.tox_env, 'py') }}
+
+      - name: Install KubeVirt CDI 
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: |
+            export VERSION=v1.40.0
+            kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-operator.yaml
+            kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml
         if: ${{ contains(matrix.tox_env, 'py') }}
 
       - name: Install virtcl

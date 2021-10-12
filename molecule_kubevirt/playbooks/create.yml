@@ -14,6 +14,7 @@
         size: 1024
         type: rsa
       with_items: "{{ molecule_yml.platforms  }}"
+      when: "not (item.no_cloud | default(None))"
 
     - name: Create cloud init with ssh identity for molecule user
       k8s:
@@ -36,6 +37,7 @@
                   ssh_authorized_keys:
                     - {{ lookup('file', molecule_ephemeral_directory + '/identity_'+ item.name + '.pub' ) }}
       with_items: "{{ molecule_yml.platforms  }}"
+      when: "not (item.no_cloud_password | default(None))"
 
     - name: Create VM block
       block:
@@ -58,10 +60,8 @@
                 network:
                   pod: {}
 
-            cloud_init_nocloud:
-              secretRef:
-                name: "{{ item.name }}-cloud-init"
-
+            cloud_init_nocloud: "{{ cloud_inits[item.name] | default(omit) }}"
+            
             cpu_model: "{{ item.cpu_model | default(omit) }}"
             headless: "{{ item.headless | default(omit) }}"
             hugepage_size: "{{ item.hugepage_size | default(omit) }}"
@@ -82,7 +82,7 @@
                   bus: virtio
           with_items: "{{ molecule_yml.platforms  }}"
           register: server
-
+ 
       rescue:
         - name: Failed to get running VM - Get VM and VMI
           k8s_info:
@@ -118,6 +118,7 @@
       register: service
       with_items: "{{ molecule_yml.platforms  }}"
 
+
     # Via Kubernetes Services, VM can be accessed via its name.namespace.svc
     # FIXME : this code from vagrant molecule may not be the best for kubevirt
     - name: Populate instance config dict
@@ -125,9 +126,13 @@
         instance_conf_dict: |
           { "instance": "{{ item.kubevirt_vm.metadata.name }}",
             "address": "{{ item.kubevirt_vm.metadata.name }}.{{ item.kubevirt_vm.metadata.namespace }}.svc",
-            "user": "{{ item.user_name | default('molecule') }}",
+            "user": "{{ item.item.user_name | default('molecule') }}",
             "port": "22",
+            {% if not (item.item.no_cloud_password | default(None)) %}
             "identity_file": "{{ molecule_ephemeral_directory }}/identity_{{ item.kubevirt_vm.metadata.name }}"
+            {% else %}
+            "password": "{{ item.item.no_cloud_password }}"
+            {% endif %}
           }
       with_items: "{{ server.results }}"
       register: instance_config_dict
