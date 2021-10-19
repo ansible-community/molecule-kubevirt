@@ -105,8 +105,11 @@
             # FIXME: need override in platforms config
             wait_timeout: 900
           with_items: "{{ molecule_yml.platforms  }}"
-
+        - name: Pause for 1 minute
+          pause:
+            minutes: 1
       rescue:
+        # TODO: refactor status dumps
         - name: Failed to import URL via CDI
           k8s_info:
             kind: "PersistentVolumeClaim"
@@ -116,7 +119,6 @@
         - name: Failed to import URL via CDI - Dump
           fail:
             msg: "{{ pvc_info }}"
-
 
     - name: Async create virtual machine and start it
       community.kubevirt.kubevirt_vm:
