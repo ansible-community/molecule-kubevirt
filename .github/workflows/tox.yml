@@ -130,8 +130,23 @@ jobs:
           max_attempts: 3
           command: |
             kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.48.0/kubevirt-operator.yaml
-            kubectl create configmap kubevirt-config -n kubevirt --from-literal debug.useEmulation=true
             kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/v0.48.0/kubevirt-cr.yaml
+            cat <<EOF |kubectl apply -f -
+            apiVersion: kubevirt.io/v1
+            kind: KubeVirt
+            metadata:
+              name: kubevirt
+              namespace: kubevirt
+            spec:
+              certificateRotateStrategy: {}
+              configuration:
+                developerConfiguration:
+                  useEmulation: true
+              customizeComponents: {}
+              imagePullPolicy: IfNotPresent
+              workloadUpdateStrategy: {}
+            EOF
+
         if: ${{ contains(matrix.tox_env, 'py') }}
 
       - name: Install virtcl
@@ -271,7 +286,7 @@ jobs:
         run: |
           cat /tmp/ns-kubevirt.log || true
 
-      - name: Print ns kubevirt pod logs
+      - name: Print ns default pod logs
         if: always()
         run: |
           cat /tmp/ns-default.log || true
