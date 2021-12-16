@@ -192,7 +192,9 @@ jobs:
       - name: Launch background log scripts
         run: |
           # Kail monitors any logs from default namespace
-          kail -n default 2>&1 > /tmp/kail.log || true &
+          kail -n default 2>&1 > /tmp/ns-default.log || true &
+          kail -n kubevirt --since 30m 2>&1 > /tmp/ns-kubevirt.log || true &
+          kail -n kube-system --since 30m 2>&1 > /tmp/ns-kube-system.log || true &
           # Infinite script waits for new VMs up and fetch logs from console
           (tools/log_console.sh || true ) &
           # Event router reports any event as log, a great help for troubleshooting since minikube exports all running Pods logs
@@ -251,19 +253,43 @@ jobs:
             if [ ! "${MOLECULE_RESULT}" == "0" ]; then echo "Test non ok : ${MOLECULE_RESULT}"; exit 1; fi
         if: ${{ contains(matrix.tox_env, 'py') }}
 
-      - name: Dump and export logs
+      - name: Print and dump Kubenetes status
         if: always()
         run: |
           mkdir -p ${LOG_DIR} || true
           echo "** Events"
-          kubectl get events | tee ${LOG_DIR}/events.txt || true
+          kubectl get events --sort-by='.lastTimestamp' | tee ${LOG_DIR}/events.txt || true
           echo "** Jobs"
           kubectl describe jobs | tee  ${LOG_DIR}/jobs.txt || true
           echo "** Configmap"
           kubectl describe cm | tee ${LOG_DIR}/cm.txt || true
-          echo "** Console log"
+        env:
+          LOG_DIR: /tmp/molecule-kubevirt/logs
+
+      - name: Print ns kubevirt pod logs
+        if: always()
+        run: |
+          cat /tmp/ns-kubevirt.log || true
+
+      - name: Print ns kubevirt pod logs
+        if: always()
+        run: |
+          cat /tmp/ns-default.log || true
+
+      - name: Print virtctl log
+        if: always()
+        run: |
           cat /tmp/virtcl-console*.log || true
 
+      - name: Dump Kubevirt
+        if: always()
+        run: |
+          cat /tmp/virtcl-console*.log || true
+
+      - name: Export logs
+        if: always()
+        run: |
+          cp /tmp/ns-*.log ${LOG_DIR} || true
           cp /tmp/kail.log ${LOG_DIR} || true
           cp /tmp/virtcl-console*.log ${LOG_DIR} || true
           sudo dmesg > ${LOG_DIR}/dmesg.txt || true
