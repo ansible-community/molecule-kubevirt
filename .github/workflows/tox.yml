@@ -155,7 +155,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           command: |
-            export VERSION=v1.40.0
+            export VERSION=v1.41.1
             kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-operator.yaml
             kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml
         if: ${{ contains(matrix.tox_env, 'py') }}
