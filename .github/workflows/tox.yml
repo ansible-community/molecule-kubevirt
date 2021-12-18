@@ -187,6 +187,10 @@ jobs:
             sudo install kail /usr/local/bin
         if: ${{ contains(matrix.tox_env, 'py') }}
 
+      - name: Install log colour script
+        run: |
+          sudo install tools/kawlour /usr/local/bin
+
       - name: Wait and get kubevirt status
         run: |
           # wait network is ready
@@ -207,7 +211,7 @@ jobs:
       - name: Launch background log scripts
         run: |
           # Kail monitors any logs from default namespace
-          
+
           # Infinite script waits for new VMs up and fetch logs from console
           # Event router reports any event as log, a great help for troubleshooting since minikube exports all running Pods logs
           # FIXME: no more working: https://github.com/jseguillon/molecule-kubevirt/runs/3795920362?check_suite_focus=true
@@ -227,10 +231,10 @@ jobs:
             export LOG_DIR="/tmp/molecule_kubevirt_logs/$(date '+%YY-%m-%d-%H-%M-%S')"
             mkdir -p ${LOG_DIR}
 
-            kail -n default 2>&1 > ${LOG_DIR}/ns-default.log || true & (tools/log_console.sh || true ) & kail -n kubevirt 2>&1 > ${LOG_DIR}/ns-kubevirt.log 
+            kail -n default 2>&1 > ${LOG_DIR}/ns-default.log || true & (tools/log_console.sh || true ) & kail -n kubevirt 2>&1 > ${LOG_DIR}/ns-kubevirt.log
             kubectl get pods -n default -w 2>&1 | tee ${LOG_DIR}/pod-watch.log || true &
 
-            # Configmap will be waitinig untill it is deleted, telling one Pod ended the Job
+            # Configmap will be waiting untill it is deleted, telling one Pod ended the Job
             kubectl create configmap molecule-job-running --from-literal status=Started
             cat <<EOF | kubectl apply -f -
             ---
@@ -268,19 +272,19 @@ jobs:
 
             kill $(jobs -p)
 
-            echo "::group::pod watch default ns" 
+            echo "::group::pod watch default ns"
             cat ${LOG_DIR}/pod-watch.log | kawlour || true
             echo "::endgroup::"
-            
-            echo "::group::logs namespace default" 
+
+            echo "::group::logs namespace default"
             cat ${LOG_DIR}/ns-default.log  | kawlour || true
             echo "::endgroup::"
 
-            echo "::group::logs virtctl" 
+            echo "::group::logs virtctl"
             cat ${LOG_DIR}/virtcl-console*.log  | kawlour || true
             echo "::endgroup::"
-            
-            echo "::group::logs namespace kubvirt" 
+
+            echo "::group::logs namespace kubvirt"
             cat ${LOG_DIR}/ns-kubevirt.log  | kawlour || true
             echo "::endgroup::"
 
