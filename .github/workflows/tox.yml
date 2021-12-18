@@ -269,19 +269,19 @@ jobs:
             kill $(jobs -p)
 
             echo "::group::pod watch default ns" 
-            cat ${LOG_DIR}/pod-watch.log || true
+            cat ${LOG_DIR}/pod-watch.log | kawlour || true
             echo "::endgroup::"
             
             echo "::group::logs namespace default" 
-            cat ${LOG_DIR}/ns-default.log || true
+            cat ${LOG_DIR}/ns-default.log  | kawlour || true
             echo "::endgroup::"
 
             echo "::group::logs virtctl" 
-            cat ${LOG_DIR}/virtcl-console*.log || true
+            cat ${LOG_DIR}/virtcl-console*.log  | kawlour || true
             echo "::endgroup::"
             
             echo "::group::logs namespace kubvirt" 
-            cat ${LOG_DIR}/ns-kubevirt.log || true
+            cat ${LOG_DIR}/ns-kubevirt.log  | kawlour || true
             echo "::endgroup::"
 
             # Get molecule tests results and exit accordingly
@@ -308,10 +308,10 @@ jobs:
           kubectl describe cm | tee ${LOG_DIR}/cm.txt || true
           echo "::endgroup::"
           echo "::group::namespace kubevirt all"
-          cat /tmp/ns-kubevirt.log || true
+          cat /tmp/ns-kubevirt.log | kawlour || true
           echo "::endgroup::"
           echo "::group::namespace kube-system all"
-          cat /tmp/ns-kube-system.log || true
+          cat /tmp/ns-kube-system.log | kawlour || true
           echo "::endgroup::"
         env:
           LOG_DIR: /tmp/molecule-kubevirt/logs
