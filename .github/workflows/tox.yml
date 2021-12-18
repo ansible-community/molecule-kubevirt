@@ -213,7 +213,6 @@ jobs:
       - name: Launch background log scripts
         run: |
           # Kail monitors any logs from default namespace
-
           # Infinite script waits for new VMs up and fetch logs from console
           # Event router reports any event as log, a great help for troubleshooting since minikube exports all running Pods logs
           # FIXME: no more working: https://github.com/jseguillon/molecule-kubevirt/runs/3795920362?check_suite_focus=true
