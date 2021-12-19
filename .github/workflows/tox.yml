@@ -231,7 +231,7 @@ jobs:
             export LOG_DIR="/tmp/molecule_kubevirt_logs/$(date '+%YY-%m-%d-%H-%M-%S')"
             mkdir -p ${LOG_DIR}
 
-            # kail -n default 2>&1 > ${LOG_DIR}/ns-default.log || true & (tools/log_console.sh || true ) & kail -n kubevirt 2>&1 > ${LOG_DIR}/ns-kubevirt.log || true &
+            kail -n default 2>&1 > ${LOG_DIR}/ns-default.log || true & (tools/log_console.sh || true ) & kail -n kubevirt 2>&1 > ${LOG_DIR}/ns-kubevirt.log || true &
             # kubectl get pods -n default -w 2>&1 | tee ${LOG_DIR}/pod-watch.log || true &
 
             # Configmap will be waiting untill it is deleted, telling one Pod ended the Job
