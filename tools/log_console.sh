@@ -6,4 +6,4 @@ done
 
 LOGFILE="virtcl-console-$(date '+%Y-%m-%d-%H-%M-%S').log"
 echo "Starting virtctl console" >> ${LOG_DIR}/${LOGFILE}
-script -e -c "virtctl console instance" >> ${LOG_DIR}/${LOGFILE
+script -e -c "virtctl console instance" >> ${LOG_DIR}/${LOGFILE}
