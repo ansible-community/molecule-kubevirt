@@ -1,0 +1,79 @@
+#!/bin/sh
+
+awk -F '\n'  '
+BEGIN{IGNORECASE=1}
+function color(c) {
+        for(i=1;i<=NF;i++)
+         {
+            Debug=""
+            Inf=""
+            Warn=""
+            Err=""
+            if (c != 0){
+              Debug=sprintf("\033[35;1m&\033[31;0m\033[%dm", 30+c)
+              Inf=sprintf("\033[34;1m&\033[31;0m\033[%dm", 30+c)
+              Warn=sprintf("\033[33;1m&\033[31;0m\033[%dm", 30+c)
+              Err=sprintf("\033[31;1m&\033[31;0m\033[%dm", 30+c)
+              Green=sprintf("\033[32;1m&\033[31;0m\033[%dm", 30+c)
+              Magenta=sprintf("\033[35;1m&\033[31;0m\033[%dm", 30+c)
+            }
+            else {
+              Debug=sprintf("\033[35;1m&\033[30;0m")
+              Inf=sprintf("\033[34;1m&\033[30;0m")
+              Warn=sprintf("\033[33;1m&\033[30;0m")
+              Err=sprintf("\033[31;1m&\033[30;0m")
+              Green=sprintf("\033[32;1m&\033[30;0m", 30+c)
+              Magenta=sprintf("\033[35;1m&\033[30;0m", 30+c)
+            }
+
+            gsub(/\Wdebug\W/, Debug, $i)
+            gsub(/\Winfo\W/, Inf, $i)
+            gsub(/\Werror\W/, Err, $i)
+            gsub(/\Wwarning\W/, Warn, $i)
+
+
+            gsub(/: TRACE/, Debug, $i)
+            gsub(/: I[0-9]+/, Inf, $i)
+            gsub(/: W[0-9]+/, Warn, $i)
+            gsub(/: E[0-9]+/, Err, $i)
+
+            gsub(/Failed/, Err, $i)
+            gsub(/CrashLoopBackoff/, Err, $i)
+            gsub(/CRITICAL/, Err, $i)
+
+            gsub(/True/, Green, $i)
+            gsub(/False/, Magenta, $i)
+
+            gsub(/9[0-9]%/, Inf, $i)
+            gsub(/8[5-9]%/, Warn, $i)
+
+            if (c != 0){
+              printf("\033[%dm%s\033[0m",30+c,$i)
+            }
+            else {
+              printf("%s",$i)
+            }
+        }
+        print ""
+        #
+}
+/"level":"error"/ {color(1);next}
+/: E[0-9]+/ {color(1);next}
+/^E[0-9]+/ {color(1);next}
+/\]: fatal: \[/ {color(1);next}
+/\]: failed: \[/ {color(1);next}
+/\]: ok: \[/  {color(2);next}
+/"level": *"warning"/ {color(3);next}
+/\]: changed: \[/  {color(3);next}
+/: W[0-9]+/ {color(3);next}
+/^W[0-9]+/ {color(3);next}
+/"level": *"warn"/ {color(4);next}
+/"level": *"info"/ {color(4);next}
+/: I[0-9]+/ {color(4);next}
+/^I[0-9]+/ {color(4);next}
+/"level": *"debug"/ {color(5);next}
+/: TRACE/ {color(5);next}
+/^TRACE/ {color(5);next}
+/\]: skipping: \[/ {color(5);next}
+{color(0);next}
+' $1

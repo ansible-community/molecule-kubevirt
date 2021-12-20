@@ -178,6 +178,10 @@ jobs:
             sudo install kail /usr/local/bin
         if: ${{ contains(matrix.tox_env, 'py') }}
 
+      - name: Install log colour script
+        run: |
+          sudo install tools/kawlour /usr/local/bin
+
       - name: Wait and get kubevirt status
         run: |
           # wait network is ready
@@ -198,11 +202,8 @@ jobs:
       - name: Launch background log scripts
         run: |
           # Kail monitors any logs from default namespace
-          kail -n default 2>&1 > /tmp/ns-default.log || true &
-          kail -n kubevirt --since 30m 2>&1 > /tmp/ns-kubevirt.log || true &
-          kail -n kube-system --since 30m 2>&1 > /tmp/ns-kube-system.log || true &
+
           # Infinite script waits for new VMs up and fetch logs from console
-          (tools/log_console.sh || true ) &
           # Event router reports any event as log, a great help for troubleshooting since minikube exports all running Pods logs
           # FIXME: no more working: https://github.com/jseguillon/molecule-kubevirt/runs/3795920362?check_suite_focus=true
           # kubectl create -f https://raw.githubusercontent.com/heptiolabs/eventrouter/master/yaml/eventrouter.yaml
@@ -218,7 +219,13 @@ jobs:
             kubectl delete configmaps --all || true
             kubectl delete job --all || true
           command: |
-            # Configmap will be waitinig untill it is deleted, telling one Pod ended the Job
+            export LOG_DIR="/tmp/molecule_kubevirt_logs/$(date '+%YY-%m-%d-%H-%M-%S')"
+            mkdir -p ${LOG_DIR}
+
+            kail -n default 2>&1 > ${LOG_DIR}/ns-default.log || true & (tools/log_console.sh || true ) & kail -n kubevirt 2>&1 > ${LOG_DIR}/ns-kubevirt.log || true &
+            kubectl get pods -n default -w 2>&1 | tee ${LOG_DIR}/pod-watch.log || true &
+
+            # Configmap will be waiting untill it is deleted, telling one Pod ended the Job
             kubectl create configmap molecule-job-running --from-literal status=Started
             cat <<EOF | kubectl apply -f -
             ---
@@ -254,6 +261,24 @@ jobs:
             # Wait for molecule Job to delete configmap, notifying one Job Pod ran till the end, whatever the result
             kubectl wait --for delete --timeout=20m  configmap/molecule-job-running
 
+            kill $(jobs -p)
+
+            echo "::group::pod watch default ns"
+            cat ${LOG_DIR}/pod-watch.log | kawlour || true
+            echo "::endgroup::"
+
+            echo "::group::logs namespace default"
+            cat ${LOG_DIR}/ns-default.log  | kawlour || true
+            echo "::endgroup::"
+
+            echo "::group::logs virtctl"
+            cat ${LOG_DIR}/virtcl-console*.log  | kawlour || true
+            echo "::endgroup::"
+
+            echo "::group::logs namespace kubvirt"
+            cat ${LOG_DIR}/ns-kubevirt.log  | kawlour || true
+            echo "::endgroup::"
+
             # Get molecule tests results and exit accordingly
             MOLECULE_RESULT=$(kubectl get configmap molecule-result -o "jsonpath={.data['exitCode']}")
             if [ ! "${MOLECULE_RESULT}" == "0" ]; then echo "Test non ok : ${MOLECULE_RESULT}"; exit 1; fi
@@ -262,39 +287,34 @@ jobs:
       - name: Print and dump Kubenetes status
         if: always()
         run: |
+          kail -n kubevirt --since 120m 2>&1 > /tmp/ns-kubevirt.log || true &
+          kail -n kube-system --since 120m 2>&1 > /tmp/ns-kube-system.log || true &
           mkdir -p ${LOG_DIR} || true
+          echo "::group::Events"
           echo "** Events"
           kubectl get events --sort-by='.lastTimestamp' | tee ${LOG_DIR}/events.txt || true
+          echo "::endgroup::"
+          echo "::group::Jobs"
           echo "** Jobs"
           kubectl describe jobs | tee  ${LOG_DIR}/jobs.txt || true
-          echo "** Configmap"
+          echo "::endgroup::"
+          echo "::group::Configmap"
+          echo "** Describe Configmap"
           kubectl describe cm | tee ${LOG_DIR}/cm.txt || true
+          echo "::endgroup::"
+          echo "::group::namespace kubevirt all"
+          cat /tmp/ns-kubevirt.log | kawlour || true
+          echo "::endgroup::"
+          echo "::group::namespace kube-system all"
+          cat /tmp/ns-kube-system.log | kawlour || true
+          echo "::endgroup::"
         env:
           LOG_DIR: /tmp/molecule-kubevirt/logs
-
-      - name: Print ns kubevirt pod logs
-        if: always()
-        run: |
-          cat /tmp/ns-kubevirt.log || true
-
-      - name: Print ns default pod logs
-        if: always()
-        run: |
-          cat /tmp/ns-default.log || true
-
-      - name: Print virtctl log
-        if: always()
-        run: |
-          cat /tmp/virtcl-console*.log || true
-
-      - name: Dump Kubevirt
-        if: always()
-        run: |
-          cat /tmp/virtcl-console*.log || true
 
       - name: Export logs
         if: always()
         run: |
+          cp -r /tmp/molecule_kubevirt_logs/* ${LOG_DIR} || true
           cp /tmp/ns-*.log ${LOG_DIR} || true
           cp /tmp/kail.log ${LOG_DIR} || true
           cp /tmp/virtcl-console*.log ${LOG_DIR} || true

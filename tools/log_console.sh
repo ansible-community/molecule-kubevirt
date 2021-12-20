@@ -1,11 +1,9 @@
 #!/bin/bash
 # Backgroung wait for Pod reflecting VM to be reday then log console
-while true; do
-  until kubectl wait --for=condition=Ready pod -l kubevirt.io=virt-launcher --namespace default;
-    do echo "Still Waiting Pod to start..."; sleep 5;
-  done
-
-  LOGFILE="virtcl-console-$(date '+%Y-%m-%d-%H-%M-%S').log"
-  echo "Starting virtctl console" >> /tmp/${LOGFILE}
-  script -e -c "virtctl console instance" >> /tmp/${LOGFILE}
+until kubectl wait --for=condition=Ready pod -l kubevirt.io=virt-launcher --namespace default 2> /dev/null;
+  do echo "Still Waiting VM Pod to be in ready condition"; sleep 30;
 done
+
+LOGFILE="virtcl-console-$(date '+%Y-%m-%d-%H-%M-%S').log"
+echo "Starting virtctl console" >> ${LOG_DIR}/${LOGFILE}
+script -e -c "virtctl console instance" >> ${LOG_DIR}/${LOGFILE}
