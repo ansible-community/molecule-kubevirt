@@ -163,17 +163,8 @@ jobs:
 
       - name: Build molecule test container for ${{ matrix.tox_env }}
         run: |
+          eval $(minikube docker-env)
           docker build --build-arg PYTHON_BASE_IMAGE=${{ matrix.PYTHON_BASE_IMAGE }} --build-arg KUBERNETES_VERSION=${{ matrix.KUBERNETES_VERSION }} . --file tools/Dockerfile  -t molecule_kubevirt_${{ matrix.tox_env }}:latest
-        if: ${{ contains(matrix.tox_env, 'py') }}
-
-      - name: Push molecule test to minikube
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          command: |
-            # TODO : minkube load is slow : set a private registry ?
-            minikube image load molecule_kubevirt_${{ matrix.tox_env }}:latest
         if: ${{ contains(matrix.tox_env, 'py') }}
 
       - name: Install kail
