@@ -26,27 +26,27 @@ jobs:
           - tox_env: lint
           # - tox_env: docs
           - tox_env: py36-ansible_2
-            PREFIX: PYTEST_REQPASS=3
+            PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.6
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py36-ansible_2-devel
-            PREFIX: PYTEST_REQPASS=3
+            PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.6
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py37-ansible_3
-            PREFIX: PYTEST_REQPASS=3
+            PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.7
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py38-ansible_4
-            PREFIX: PYTEST_REQPASS=3
+            PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.8
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py39-ansible_2
-            PREFIX: PYTEST_REQPASS=3
+            PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.9
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py39-ansible_2-devel
-            PREFIX: PYTEST_REQPASS=3
+            PREFIX: PYTEST_REQPASS=2
             PYTHON_BASE_IMAGE: python:3.9
             KUBERNETES_VERSION: v1.22.2
           - tox_env: packaging
