@@ -5,7 +5,7 @@ driver:
   name: kubevirt
 platforms:
   - name: instance
-    cdi_source_http_url: docker://quay.io/jseguillon/kubevirt-images:centos-7-x86_64-genericcloud-2009:latest
+    cdi_source_http_url: docker://quay.io/jseguillon/kubevirt-images:centos-7-x86_64-genericcloud-2009
     cdi_pvc_size: 10Gi
 
 provisioner:
