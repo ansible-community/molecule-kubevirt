@@ -18,7 +18,7 @@ jobs:
   build:
     name: ${{ matrix.tox_env }}
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -26,27 +26,27 @@ jobs:
           - tox_env: lint
           # - tox_env: docs
           - tox_env: py36-ansible_2
-            PREFIX: PYTEST_REQPASS=1
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.6
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py36-ansible_2-devel
-            PREFIX: PYTEST_REQPASS=1
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.6
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py37-ansible_3
-            PREFIX: PYTEST_REQPASS=1
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.7
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py38-ansible_4
-            PREFIX: PYTEST_REQPASS=1
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.8
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py39-ansible_2
-            PREFIX: PYTEST_REQPASS=1
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.9
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py39-ansible_2-devel
-            PREFIX: PYTEST_REQPASS=1
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.9
             KUBERNETES_VERSION: v1.22.2
           - tox_env: packaging
@@ -269,7 +269,7 @@ jobs:
             echo "Molecule pod is now running, waiting..."
 
             # Wait for molecule Job to delete configmap, notifying one Job Pod ran till the end, whatever the result
-            kubectl wait --for delete --timeout=40m  configmap/molecule-job-running
+            kubectl wait --for delete --timeout=20m  configmap/molecule-job-running
 
             kill $(jobs -p)
 
