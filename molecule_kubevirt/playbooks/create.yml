@@ -102,8 +102,8 @@
               # If the URL points to a tar.gz containing the disk image, set to archive:
               content_type: "{{ item.cdi_source_content_type | default(omit) }}"
             wait: true
-            # FIXME: need override in platforms config
-            wait_timeout: 900
+            # TODO: may need refacto
+             wait_timeout: "{{ item.wait_cdi_timeout | default(300) }}"
           with_items: "{{ molecule_yml.platforms  }}"
         - name: Pause for 1 minute
           pause:
