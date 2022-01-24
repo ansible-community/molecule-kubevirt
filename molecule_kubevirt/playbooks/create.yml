@@ -98,7 +98,7 @@
               - ReadWriteOnce
             cdi_source:
               registry:
-                url:  "{{ item.cdi_source_http_url }}"
+                url: "{{ item.cdi_source_http_url }}"
               # If the URL points to a tar.gz containing the disk image, set to archive:
               content_type: "{{ item.cdi_source_content_type | default(omit) }}"
             wait: true
