@@ -252,7 +252,7 @@ jobs:
                     image: molecule_kubevirt_${{ matrix.tox_env }}
                     imagePullPolicy: IfNotPresent
                     command: [ "/bin/bash", "-c", "--" ]
-                    args: ["(tox -e ${{ matrix.tox_env }} ${{ matrix.PREFIX }} -c /opt/molecule_kubevirt/tox.ini ; kubectl create configmap molecule-result --from-literal exitCode=\$?); kubectl delete configmap molecule-job-running"]
+                    args: ["(${{ matrix.PREFIX }} tox -e ${{ matrix.tox_env }} -c /opt/molecule_kubevirt/tox.ini ; kubectl create configmap molecule-result --from-literal exitCode=\$?); kubectl delete configmap molecule-job-running"]
                   restartPolicy: Never
               backoffLimit: 0
             EOF
