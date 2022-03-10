@@ -40,7 +40,7 @@ variables in your ``molecule.yml``. Here's a simple example using a home made ce
     name: kubevirt
   platforms:
     - name: instance
-      image: quay.io/jseguillon/kubevirt-images:centos-7-x86_64-genericcloud-2009
+      image: quay.io/kubevirt/fedora-cloud-container-disk-demo
 
 This driver also requires molecule to access Kubernetes API. See test-rolebinding_ file.
 
