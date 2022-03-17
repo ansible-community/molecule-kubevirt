@@ -42,11 +42,6 @@ variables in your ``molecule.yml``. Here's a simple example using a home made ce
     - name: instance
       image: quay.io/kubevirt/fedora-cloud-container-disk-demo
 
-This driver also requires molecule to access Kubernetes API. See test-rolebinding_ file.
-
-.. _`test-rolebinding`: /tools/test-rolebinding.yaml
-
-
 Installation
 ============
 
@@ -70,6 +65,75 @@ KubeVirt
 
 Get access to a Kubernetes cluster then install KubeVirt for `kind <https://kubevirt.io/quickstart_kind/>`_ or `minkube <https://kubevirt.io/quickstart_minikube/>`_ or `cloud providers <https://kubevirt.io/quickstart_cloud/>`_
 
+
+SSH access
+==========
+
+A Kubernetes Service is created by the driver for SSH access. Current supported Services are ClusterIP and NodePort.
+
+ClusterIP
+---------
+
+Default SSH Service is ClusterIP and a static clusterIP can be set:
+
+.. code-block:: yaml
+
+  ssh_service:
+    type: ClusterIP
+    clusterIP: 10.96.102.231
+
+
+Please note molecule needs to be able to route ip to ClusterIPs Services:
+
+* if running Kubernetes with kind:
+
+.. code-block:: shell
+
+  IP=$(docker container inspect kind-control-plane   --format '{{ .NetworkSettings.Networks.kind.IPAddress }}')
+  sudo ip route add 10.96.0.0/12 via $IP # Linux
+  # sudo route -n add 10.96.0.0/12 $IP # MacOSX
+
+* if running Kubernetes with minikube:
+
+.. code-block:: shell
+
+  sudo ip route add 172.17.0.0/16 via $(minikube ip) # Linux
+  # sudo route -n add 172.17.0.0/16 $(minikube ip) # MacOSX
+
+If running tox from inside Kubernetes cluster, nothing to do on this item.
+
+
+NodePort
+--------
+
+NodePort can be set. Static nodePort can be defined, also host target for port can be set:
+
+.. code-block:: yaml
+
+  ssh_service:
+    type: ClusterIP
+    clusterIP: 10.96.102.231
+
+
+  ssh_service:
+    type: NodePort
+    # optional static port
+    nodePort: 32569
+    # host where nodePort can be reached
+    nodePort_host: localhost
+
+
+Run from inside Kubernetes cluster
+==================================
+
+You can run this driver with a container running tox and/or molecule. Take a look at:
+ * Dockerfile_ as a base image
+ * test-rolebinding_ file for ServiceAccount example
+ * github_workflow_ in step named "Launch test" for a Job running tox
+
+.. _`test-rolebinding`: /tools/test-rolebinding.yaml
+.. _`Dockerfile`: /tools/Dockerfile
+.. _`github_workflow`: .github/workflows/tox.yml
 
 Demo
 ====
