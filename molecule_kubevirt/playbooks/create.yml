@@ -22,7 +22,9 @@
         path: "{{ ssh_key_path }}"
         size: 1024
         type: rsa
-      with_items: "{{ molecule_yml.platforms  }}"
+      loop: "{{ molecule_yml.platforms  }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Create cloud init with ssh identity for molecule user
       k8s:
@@ -44,7 +46,9 @@
                   lock_passwd: false
                   ssh_authorized_keys:
                     - {{ lookup('file', molecule_ephemeral_directory + '/identity_'+ item.name + '.pub' ) }}
-      with_items: "{{ molecule_yml.platforms  }}"
+      loop: "{{ molecule_yml.platforms  }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Async create virtual machine and start it
       community.kubevirt.kubevirt_vm:
@@ -86,7 +90,9 @@
                 imagePullPolicy: "IfNotPresent"
             disk:
               bus: virtio
-      with_items: "{{ molecule_yml.platforms  }}"
+      loop: "{{ molecule_yml.platforms  }}"
+      loop_control:
+        label: "{{ item.name }}"
       async: "{{ item.wait_timeout | default(default_vm_timeout) }}"
       poll: 0
       register: poll_reg
@@ -109,7 +115,9 @@
               vm.cnv.io/name: "{{ item.name }}"
             type: ClusterIP
       register: service
-      with_items: "{{ molecule_yml.platforms  }}"
+      loop: "{{ molecule_yml.platforms  }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: VM creation check block
       block:
@@ -147,7 +155,9 @@
             "port": "22",
             "identity_file": "{{ molecule_ephemeral_directory }}/identity_{{ item.kubevirt_vm.metadata.name }}"
           }
-      with_items: "{{ async_poll_results.results }}"
+      loop: "{{ async_poll_results.results }}"
+      loop_control:
+        label: "{{ item.kubevirt_vm.metadata.name }}"
       register: instance_config_dict
 
     - name: Convert instance config dict to a list
@@ -166,8 +176,10 @@
         port: "{{ item['ansible_facts']['instance_conf_dict']['port'] | default('22') }}"
         host: "{{ item['ansible_facts']['instance_conf_dict']['address'] }}"
         delay: 1
-      with_items: "{{ instance_config_dict.results }}"
-      async: "{{ item['ansible_facts']['instance_conf_dict']['ssh_timeout'] | default(default_ssh_timeout) }}"
+      loop: "{{ instance_config_dict.results }}"
+      loop_control:
+        label: "{{ item['ansible_facts']['instance_conf_dict']['address'] }}"
+      async: "{{ item['ssh_timeout'] | default(default_ssh_timeout) }}"
       poll: 0
       register: ssh_reg
 
