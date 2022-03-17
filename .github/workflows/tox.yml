@@ -213,7 +213,7 @@ jobs:
         uses: nick-invision/retry@v2
         with:
           timeout_minutes: 25
-          max_attempts: 3
+          max_attempts: 1
           on_retry_command: |
             kubectl delete pods --all || true
             kubectl delete configmaps --all || true
