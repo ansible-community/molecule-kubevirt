@@ -7,13 +7,24 @@
   vars:
     molecule_labels:
       owner: molecule
+    default_namespace: "default"
+    default_user_name: "molecule"
+    default_vm_timeout: 60
+    default_vm_memory: "2Gi"
+    default_vm_machine_type: "q35"
+    default_vm_disk_image: "quay.io/kubevirt/fedora-cloud-container-disk-demo"
+    default_ssh_timeout: 300
+    ssh_key_path: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
+
   tasks:
     - name: Create ssh key pair
       openssh_keypair:
-        path: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
+        path: "{{ ssh_key_path }}"
         size: 1024
         type: rsa
-      with_items: "{{ molecule_yml.platforms  }}"
+      loop: "{{ molecule_yml.platforms  }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Create cloud init with ssh identity for molecule user
       k8s:
@@ -23,79 +34,68 @@
           kind: Secret
           metadata:
             name: "{{ item.name }}-cloud-init"
-            namespace: "{{ item.namespace | default('default') }}"
+            namespace: "{{ item.namespace | default(default_namespace) }}"
           type: Opaque
           stringData:
             userdata: |-
               #cloud-config
               users:
-                - name: {{ item.user_name | default('molecule') }}
+                - name: {{ item.user_name | default(default_user_name) }}
                   sudo: ALL=(ALL) NOPASSWD:ALL
                   plain_text_passwd: molecule
                   lock_passwd: false
                   ssh_authorized_keys:
                     - {{ lookup('file', molecule_ephemeral_directory + '/identity_'+ item.name + '.pub' ) }}
-      with_items: "{{ molecule_yml.platforms  }}"
+      loop: "{{ molecule_yml.platforms  }}"
+      loop_control:
+        label: "{{ item.name }}"
 
-    - name: Create VM block
-      block:
-        - name: Create virtual machine and start it
-          community.kubevirt.kubevirt_vm:
-            state: running
-            wait: true
-            wait_timeout: "{{ item.wait_timeout | default(300) }}"
-            name: "{{ item.name }}"
-            namespace: "{{ item.namespace | default('default') }}"
-            memory: "{{ item.memory | default('2Gi') }}"
-            cpu_cores: "{{ item.cpu_cores | default(omit) }}"
-            machine_type: "{{ item.machine_type | default('q35') }}"
+    - name: Async create virtual machine and start it
+      community.kubevirt.kubevirt_vm:
+        state: running
+        wait: true
+        wait_timeout: "{{ item.wait_timeout | default(default_vm_timeout) }}"
+        name: "{{ item.name }}"
+        namespace: "{{ item.namespace | default(default_namespace) }}"
+        memory: "{{ item.memory | default(default_vm_memory) }}"
+        cpu_cores: "{{ item.cpu_cores | default(omit) }}"
+        machine_type: "{{ item.machine_type | default(default_vm_machine_type) }}"
 
-            interfaces:
-              - name: default
-                masquerade: {}
-                ports:
-                  - port: 22
-                network:
-                  pod: {}
+        interfaces:
+          - name: default
+            masquerade: {}
+            ports:
+              - port: 22
+            network:
+              pod: {}
 
-            cloud_init_nocloud:
-              secretRef:
-                name: "{{ item.name }}-cloud-init"
+        cloud_init_nocloud:
+          secretRef:
+            name: "{{ item.name }}-cloud-init"
 
-            cpu_model: "{{ item.cpu_model | default(omit) }}"
-            headless: "{{ item.headless | default(omit) }}"
-            hugepage_size: "{{ item.hugepage_size | default(omit) }}"
+        cpu_model: "{{ item.cpu_model | default(omit) }}"
+        headless: "{{ item.headless | default(omit) }}"
+        hugepage_size: "{{ item.hugepage_size | default(omit) }}"
 
-            cpu_limit: "{{ item.cpu_limit | default(omit) }}"
-            cpu_shares: "{{ item.cpu_shares | default(omit) }}"
-            ephemeral: "{{ item.ephemeral | default(omit) }}"
+        cpu_limit: "{{ item.cpu_limit | default(omit) }}"
+        cpu_shares: "{{ item.cpu_shares | default(omit) }}"
+        ephemeral: "{{ item.ephemeral | default(omit) }}"
 
-            disks:
-              - name: "{{ item.name }}-container-disk"
-                volume:
-                  containerDisk:
-                    image: "{{ item.image | default('quay.io/kubevirt/fedora-cloud-container-disk-demo') }}"
-                    path: "{{ item.image_path | default(omit) }}"
-                    imagePullPolicy: "IfNotPresent"
-                disk:
-                  bus: virtio
-          with_items: "{{ molecule_yml.platforms  }}"
-          register: server
-
-      rescue:
-        - name: Failed to get running VM - Get VM and VMI
-          k8s_info:
-            kind: "{{ item }}"
-            api_version: kubevirt.io/v1alpha3
-            namespace: "{{ item.namespace | default('default') }}"
-          with_items:
-            - VirtualMachine
-            - VirtualMachineInstance
-          register: vm_info
-
-        - name: Failed to get running VM - Dump VM and VMI
-          fail:
-            msg: "{{ vm_info }}"
+        disks:
+          - name: "{{ item.name }}-container-disk"
+            volume:
+              containerDisk:
+                image: "{{ item.image | default(default_vm_disk_image) }}"
+                path: "{{ item.image_path | default(omit) }}"
+                imagePullPolicy: "IfNotPresent"
+            disk:
+              bus: virtio
+      loop: "{{ molecule_yml.platforms  }}"
+      loop_control:
+        label: "{{ item.name }}"
+      async: "{{ item.wait_timeout | default(default_vm_timeout) }}"
+      poll: 0
+      register: poll_reg
 
     - name: Create ssh service
       k8s:
@@ -105,7 +105,7 @@
           kind: Service
           metadata:
             name: "{{ item.name }}"
-            namespace: "{{ item.namespace | default('default') }}"
+            namespace: "{{ item.namespace | default(default_namespace) }}"
           spec:
             ports:
               - port: 22
@@ -115,20 +115,49 @@
               vm.cnv.io/name: "{{ item.name }}"
             type: ClusterIP
       register: service
-      with_items: "{{ molecule_yml.platforms  }}"
+      loop: "{{ molecule_yml.platforms  }}"
+      loop_control:
+        label: "{{ item.name }}"
 
-    # Via Kubernetes Services, VM can be accessed via its name.namespace.svc
-    # FIXME : this code from vagrant molecule may not be the best for kubevirt
+    - name: VM creation check block
+      block:
+        - name: Check VM creation status
+          async_status:
+            jid: "{{ async_result_item.ansible_job_id }}"
+          loop: "{{ poll_reg.results }}"
+          loop_control:
+            loop_var: "async_result_item"
+          register: async_poll_results
+          until: async_poll_results.finished
+          delay: 1
+          retries: "{{ default_vm_timeout }}"
+      rescue:
+        - name: Failed to get running VM - Get VM and VMI
+          k8s_info:
+            kind: "{{ item }}"
+            api_version: kubevirt.io/v1alpha3
+            namespace: "{{ item.namespace | default(default_namespace) }}"
+          with_items:
+            - VirtualMachine
+            - VirtualMachineInstance
+          register: vm_info
+
+        - name: Failed to get running VM - Dump VM and VMI
+          fail:
+            msg: "{{ vm_info }}"
+
     - name: Populate instance config dict
       set_fact:
         instance_conf_dict: |
           { "instance": "{{ item.kubevirt_vm.metadata.name }}",
             "address": "{{ item.kubevirt_vm.metadata.name }}.{{ item.kubevirt_vm.metadata.namespace }}.svc",
-            "user": "{{ item.user_name | default('molecule') }}",
+            "user": "{{ item.user_name | default(default_user_name) }}",
             "port": "22",
             "identity_file": "{{ molecule_ephemeral_directory }}/identity_{{ item.kubevirt_vm.metadata.name }}"
           }
-      with_items: "{{ server.results }}"
+      loop: "{{ async_poll_results.results }}"
+      loop_control:
+        label: "{{ item.kubevirt_vm.metadata.name }}"
       register: instance_config_dict
 
     - name: Convert instance config dict to a list
@@ -141,10 +170,26 @@
         dest: "{{ molecule_instance_config }}"
         mode: 0600
 
-    - name: Test ssh access
+    - name: Async start ssh access test
       wait_for:
-        timeout: "{{ item['ansible_facts']['instance_conf_dict']['ssh_timeout'] | default('300') }}"
+        timeout: "{{ item['ansible_facts']['instance_conf_dict']['ssh_timeout'] | default(default_ssh_timeout) }}"
         port: "{{ item['ansible_facts']['instance_conf_dict']['port'] | default('22') }}"
         host: "{{ item['ansible_facts']['instance_conf_dict']['address'] }}"
-        delay: 10
-      with_items: "{{ instance_config_dict.results }}"
+        delay: 1
+      loop: "{{ instance_config_dict.results }}"
+      loop_control:
+        label: "{{ item['ansible_facts']['instance_conf_dict']['address'] }}"
+      async: "{{ item['ssh_timeout'] | default(default_ssh_timeout) }}"
+      poll: 0
+      register: ssh_reg
+
+    - name: Check ssh access test
+      async_status:
+        jid: "{{ async_result_item.ansible_job_id }}"
+      loop: "{{ ssh_reg.results }}"
+      loop_control:
+        loop_var: "async_result_item"
+      register: async_poll_results
+      until: async_poll_results.finished
+      delay: 1
+      retries: "{{ item['ansible_facts']['instance_conf_dict']['ssh_timeout'] | default(default_ssh_timeout) }}"

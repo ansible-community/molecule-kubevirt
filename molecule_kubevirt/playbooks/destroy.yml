@@ -12,7 +12,9 @@
         wait_timeout: 180
         name: "{{ item.name }}"
         namespace: "{{ item.namespace | default('default') }}"
-      with_items: "{{ molecule_yml.platforms }}"
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Delete cloud init
       k8s:
@@ -20,7 +22,9 @@
         kind: Secret
         name: "{{ item.name }}-cloud-init"
         namespace: "{{ item.namespace | default('default') }}"
-      with_items: "{{ molecule_yml.platforms }}"
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Delete ssh service
       k8s:
@@ -28,10 +32,14 @@
         kind: Service
         name: "{{ item.name }}-ssh"
         namespace: "{{ item.namespace | default('default') }}"
-      with_items: "{{ molecule_yml.platforms }}"
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Delete ssh key pair
       file:
         path: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
         state: absent
-      with_items: "{{ molecule_yml.platforms  }}"
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        label: "{{ item.name }}"
