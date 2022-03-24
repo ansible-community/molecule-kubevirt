@@ -59,12 +59,17 @@ class KubeVirt(Driver):
             cpu_shares: (omit)
             ephemeral: (omit)
             image: image_name:tag
+        ssh_service:
+            type: ClusterIP
+            clusterIP: {}
+            nodePort: {}
+            nodePort_host: localhost
 
     Image MUST be accessible on Kubernetes workers running Kubevirt. This driver
     provides no service for building images. Solutions using CDI may be found in
     later version .
 
-    Minimal authorizations are required for the molecule runner, via ServiceAccount :
+    Minimal authorizations are required for the molecule runner if running from Kubernetes, via ServiceAccount :
     .. code-block::yaml
         roleRef:
           apiGroup: rbac.authorization.k8s.io
