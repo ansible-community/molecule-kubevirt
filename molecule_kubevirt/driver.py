@@ -53,11 +53,11 @@ class KubeVirt(Driver):
             cpu_cores: (omit)
             machine_type: q35
             cpu_model: (omit)
-            headless: (omit)
-            hugepage_size: (omit)
+            autoattachGraphicsDevice: false
+            memory_request: memory
+            cpu_request: (omit)
+            memory_limit: memory
             cpu_limit: (omit)
-            cpu_shares: (omit)
-            ephemeral: (omit)
             image: image_name:tag
         ssh_service:
             type: ClusterIP
