@@ -50,12 +50,11 @@ Ansible
 
 This driver supports Ansible 2, 3 and 4.
 
-Ansible 2 requires install of comunity.kubevirt plus strict python requirements pinning:
+Ansible 2 requires python requirements pinning to:
 
 .. code-block:: shell
 
-  ansible-galaxy install git+https://github.com/ansible-collections/community.general.git
-  python3 -m pip install openshift==0.11.2 kubernetes==11.0.0
+  python3 -m pip install 'openshift==0.11.*' 'kubernetes==11.*'
 
 **No depedency required for Ansible >= 3**
 

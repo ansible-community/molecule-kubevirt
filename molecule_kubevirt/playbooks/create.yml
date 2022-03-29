@@ -46,56 +46,70 @@
                   plain_text_passwd: molecule
                   lock_passwd: false
                   ssh_authorized_keys:
-                    - {{ lookup('file', molecule_ephemeral_directory + '/identity_'+ item.name + '.pub' ) }}
+                    - {{ lookup('file', ssh_key_path + '.pub' ) }}
       loop: "{{ molecule_yml.platforms  }}"
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Async create virtual machine and start it
-      community.kubevirt.kubevirt_vm:
-        state: running
-        wait: true
-        wait_timeout: "{{ item.wait_timeout | default(default_vm_timeout) }}"
-        name: "{{ item.name }}"
-        namespace: "{{ item.namespace | default(default_namespace) }}"
-        memory: "{{ item.memory | default(default_vm_memory) }}"
-        cpu_cores: "{{ item.cpu_cores | default(omit) }}"
-        machine_type: "{{ item.machine_type | default(default_vm_machine_type) }}"
+    - name: Create virtual machines
+      vars:
+        container_disk_name: "{{ item.name }}"
 
-        interfaces:
-          - name: default
-            masquerade: {}
-            ports:
-              - port: 22
-            network:
-              pod: {}
-
-        cloud_init_nocloud:
-          secretRef:
-            name: "{{ item.name }}-cloud-init"
-
-        cpu_model: "{{ item.cpu_model | default(omit) }}"
-        headless: "{{ item.headless | default(omit) }}"
-        hugepage_size: "{{ item.hugepage_size | default(omit) }}"
-
-        cpu_limit: "{{ item.cpu_limit | default(omit) }}"
-        cpu_shares: "{{ item.cpu_shares | default(omit) }}"
-        ephemeral: "{{ item.ephemeral | default(omit) }}"
-
-        disks:
-          - name: "{{ item.name }}-container-disk"
-            volume:
-              containerDisk:
-                image: "{{ item.image | default(default_vm_disk_image) }}"
-                path: "{{ item.image_path | default(omit) }}"
-                imagePullPolicy: "IfNotPresent"
-            disk:
-              bus: virtio
+      k8s:
+        state: present
+        definition:
+          apiVersion: kubevirt.io/v1
+          kind: VirtualMachine
+          metadata:
+            name: "{{ item.name }}"
+            namespace: default
+          spec:
+            running: true
+            template:
+              metadata:
+                labels:
+                  vm.cnv.io/name: "{{ item.name }}"
+              spec:
+                domain:
+                  devices:
+                    autoattachGraphicsDevice: "{{ item.autoattachGraphicsDevice | default(false) }}"
+                    disks:
+                      - disk:
+                          bus: virtio
+                        name: "{{ container_disk_name }}"
+                      - disk:
+                          bus: virtio
+                        name: ansiblecloudinitdisk
+                    interfaces:
+                      - masquerade: {}
+                        name: default
+                        ports:
+                          - port: 22
+                  machine:
+                    type: "{{ item.machine_type | default(default_vm_machine_type) }}"
+                  resources:
+                    requests:
+                      memory: "{{ item.memory_request | default(item.memoy) | default(default_vm_memory) }}"
+                      cpu: "{{ item.cpu_request | default(item.cpu) | default(omit) }}"
+                    limits:
+                      memory: "{{ item.memory_limit | default(item.memoy) | default(default_vm_memory) }}"
+                      cpu: "{{ item.cpu_limit | default(item.cpu) | default(omit) }}"
+                networks:
+                  - name: default
+                    pod: {}
+                volumes:
+                  - containerDisk:
+                      image: "{{ item.image | default(default_vm_disk_image) }}"
+                      path: "{{ item.image_path | default(omit) }}"
+                      imagePullPolicy: "{{ item.image_pull_policy | default('IfNotPresent') }}"
+                    name: "{{ container_disk_name }}"
+                  - cloudInitNoCloud:
+                      secretRef:
+                        name: "{{ item.name }}-cloud-init"
+                    name: ansiblecloudinitdisk
       loop: "{{ molecule_yml.platforms }}"
       loop_control:
         label: "{{ item.name }}"
-      async: "{{ item.wait_timeout | default(default_vm_timeout) }}"
-      poll: 0
       register: poll_reg
 
     - name: Create ssh NodePort Kubernetes Services
@@ -150,33 +164,6 @@
       loop: "{{ molecule_yml.platforms  }}"
       loop_control:
         label: "{{ item.name }}"
-
-    - name: VM creation check block
-      block:
-        - name: Check VM creation status
-          async_status:
-            jid: "{{ async_result_item.ansible_job_id }}"
-          loop: "{{ poll_reg.results }}"
-          loop_control:
-            loop_var: "async_result_item"
-          register: async_poll_results
-          until: async_poll_results.finished
-          delay: 1
-          retries: "{{ default_vm_timeout }}"
-      rescue:
-        - name: Failed to get running VM - Get VM and VMI
-          k8s_info:
-            kind: "{{ item }}"
-            api_version: kubevirt.io/v1alpha3
-            namespace: "{{ item.namespace | default(default_namespace) }}"
-          with_items:
-            - VirtualMachine
-            - VirtualMachineInstance
-          register: vm_info
-
-        - name: Failed to get running VM - Dump VM and VMI
-          fail:
-            msg: "{{ vm_info }}"
 
     - name: SSH check block
       block:
@@ -233,16 +220,37 @@
           poll: 0
           register: ssh_reg
 
-        - name: Check ssh access test
-          async_status:
-            jid: "{{ async_result_item.ansible_job_id }}"
-          loop: "{{ ssh_reg.results }}"
-          loop_control:
-            loop_var: "async_result_item"
-          register: async_poll_results
-          until: async_poll_results.finished
-          delay: 1
-          retries: "{{ item['ansible_facts']['instance_conf_dict']['ssh_timeout'] | default(default_ssh_timeout) }}"
+        - name: SSH test
+          block:
+            - name: Check ssh access test
+              async_status:
+                jid: "{{ async_result_item.ansible_job_id }}"
+              loop: "{{ ssh_reg.results }}"
+              loop_control:
+                loop_var: "async_result_item"
+              register: async_poll_results
+              until: async_poll_results.finished
+              delay: 1
+              retries: "{{ item['ansible_facts']['instance_conf_dict']['ssh_timeout'] | default(default_ssh_timeout) }}"
+      rescue:
+        - name: Failed to get ssh
+          k8s_info:
+            kind: "{{ item }}"
+            api_version: kubevirt.io/v1alpha3
+            namespace: "{{ item.namespace | default(default_namespace) }}"
+          with_items:
+            - Service
+            - VirtualMachine
+            - VirtualMachineInstance
+          register: vm_info
+
+        - name: Failed to get running VM - Dump Service, VM and VMI
+          debug:
+            var: dump_var
+          vars:
+            dump_var: "{{ item }}"
+          loop: "{{ vm_info.results }}"
+          failed_when: true
 
     - name: Dump instance config
       copy:
