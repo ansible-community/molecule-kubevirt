@@ -116,6 +116,45 @@ NodePort can be set. Static nodePort can be defined, also host target for port c
     nodePort_host: localhost
 
 
+Virtual machines customization
+==============================
+
+Virtual machines can be customized using `domain`, `volumes`, `networks` and `user_data`.
+
+Since the driver already sets some values for molecule to start VMs with no customization, values set in those fields will be merged with default configuration.
+
+
+Disk example
+------------
+
+Here is an example on how to customize disks. Please note:
+
+* user_data is an example for Debian-11; other systems may have different disk name than /dev/vdxxx
+* since the driver creates one disk for OS, plus one disk for cloud-config, additional disk is third known disk (and gets *'c'* index)
+
+.. code-block:: yaml
+
+    domain:
+      devices:
+        disks:
+          - name: emptydisk
+            disk:
+              bus: virtio
+    volumes:
+      - name: emptydisk
+        emptyDisk:
+          capacity: 2Gi
+
+    user_data: |-
+      mounts:
+       - [ /dev/vdc, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
+      fs_setup:
+        - label: data_disk
+          filesystem: 'ext4'
+          device: /dev/vdc
+          overwrite: true
+
+
 Run from inside Kubernetes cluster
 ==================================
 

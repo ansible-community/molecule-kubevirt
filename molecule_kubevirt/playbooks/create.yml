@@ -28,25 +28,30 @@
         label: "{{ item.name }}"
 
     - name: Create cloud init with ssh identity for molecule user
+      vars:
+        user_data: |-
+          {{ item.user_data | default({}) | from_yaml | combine(default_user_data | from_yaml, recursive=True, list_merge='append') }}
+        default_user_data: |-
+          users:
+            - name: {{ item.user_name | default(default_user_name) }}
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              plain_text_passwd: molecule
+              lock_passwd: false
+              ssh_authorized_keys:
+                - {{ lookup('file', ssh_key_path + '.pub' ) }}
       k8s:
         state: present
         definition:
           apiVersion: v1
           kind: Secret
           metadata:
-            name: "{{ item.name }}-cloud-init"
+            name: "{{ item.name }}"
             namespace: "{{ item.namespace | default(default_namespace) }}"
           type: Opaque
           stringData:
             userdata: |-
               #cloud-config
-              users:
-                - name: {{ item.user_name | default(default_user_name) }}
-                  sudo: ALL=(ALL) NOPASSWD:ALL
-                  plain_text_passwd: molecule
-                  lock_passwd: false
-                  ssh_authorized_keys:
-                    - {{ lookup('file', ssh_key_path + '.pub' ) }}
+              {{ user_data | to_nice_yaml }}
       loop: "{{ molecule_yml.platforms  }}"
       loop_control:
         label: "{{ item.name }}"
@@ -54,7 +59,36 @@
     - name: Create virtual machines
       vars:
         container_disk_name: "{{ item.name }}"
-
+        domain:
+          devices:
+            autoattachGraphicsDevice: "{{ item.autoattachGraphicsDevice | default(false) }}"
+            disks:
+              - disk:
+                  bus: virtio
+                name: "{{ container_disk_name }}"
+              - disk:
+                  bus: virtio
+                name: ansiblecloudinitdisk
+          machine:
+            type: "{{ item.machine_type | default(default_vm_machine_type) }}"
+          resources:
+            requests:
+              memory: "{{ item.memory_request | default(item.memoy) | default(default_vm_memory) }}"
+              cpu: "{{ item.cpu_request | default(item.cpu) | default(omit) }}"
+            limits:
+              memory: "{{ item.memory_limit | default(item.memoy) | default(default_vm_memory) }}"
+              cpu: "{{ item.cpu_limit | default(item.cpu) | default(omit) }}"
+        networks: "{{ item.networks | default([]) }}"
+        volumes:
+          - containerDisk:
+              image: "{{ item.image | default(default_vm_disk_image) }}"
+              path: "{{ item.image_path | default(omit) }}"
+              imagePullPolicy: "{{ item.image_pull_policy | default('IfNotPresent') }}"
+            name: "{{ container_disk_name }}"
+          - cloudInitNoCloud:
+              secretRef:
+                name: "{{ item.name }}"
+            name: ansiblecloudinitdisk
       k8s:
         state: present
         definition:
@@ -67,46 +101,13 @@
             running: true
             template:
               metadata:
+                annotations: "{{ item.annotations | default({}) }}"
                 labels:
                   vm.cnv.io/name: "{{ item.name }}"
               spec:
-                domain:
-                  devices:
-                    autoattachGraphicsDevice: "{{ item.autoattachGraphicsDevice | default(false) }}"
-                    disks:
-                      - disk:
-                          bus: virtio
-                        name: "{{ container_disk_name }}"
-                      - disk:
-                          bus: virtio
-                        name: ansiblecloudinitdisk
-                    interfaces:
-                      - masquerade: {}
-                        name: default
-                        ports:
-                          - port: 22
-                  machine:
-                    type: "{{ item.machine_type | default(default_vm_machine_type) }}"
-                  resources:
-                    requests:
-                      memory: "{{ item.memory_request | default(item.memoy) | default(default_vm_memory) }}"
-                      cpu: "{{ item.cpu_request | default(item.cpu) | default(omit) }}"
-                    limits:
-                      memory: "{{ item.memory_limit | default(item.memoy) | default(default_vm_memory) }}"
-                      cpu: "{{ item.cpu_limit | default(item.cpu) | default(omit) }}"
-                networks:
-                  - name: default
-                    pod: {}
-                volumes:
-                  - containerDisk:
-                      image: "{{ item.image | default(default_vm_disk_image) }}"
-                      path: "{{ item.image_path | default(omit) }}"
-                      imagePullPolicy: "{{ item.image_pull_policy | default('IfNotPresent') }}"
-                    name: "{{ container_disk_name }}"
-                  - cloudInitNoCloud:
-                      secretRef:
-                        name: "{{ item.name }}-cloud-init"
-                    name: ansiblecloudinitdisk
+                domain: "{{ item.domain | default({}) | combine(domain, recursive=True, list_merge='prepend') }}"
+                networks: "{{ networks }}"
+                volumes: "{{ volumes + (item.volumes | default([])) }}"
       loop: "{{ molecule_yml.platforms }}"
       loop_control:
         label: "{{ item.name }}"
