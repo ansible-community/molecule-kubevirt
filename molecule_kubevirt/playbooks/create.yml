@@ -188,7 +188,7 @@
         name: "{{ item.item.name }}"
         instance: "{{ item.resources[0] | default({}) }}"
       loop: "{{ virtual_machine_info.results }}"
-      loop_control: 
+      loop_control:
         label: "{{ item.item.name }}"
       when: "item.ssh_service is not defined"
 
@@ -204,16 +204,14 @@
               identity_file: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
           vars:
             vmi: "{{ virtual_machine_info.results | selectattr('item.name','==',item.name) | first }}"
-            # FIXME: NodePort must default endpoint to nodePort if node endpoint specified 
-            # Also: should get a 'local node port' for nodePort kind usage for example 
             ssh_service_address: >-
-              {%- set svc_ep = item.ssh_service.type | default(None) -%}
-              {%- if not svc_ep -%}
+              {%- set svc_type = item.ssh_service.type | default(None) -%}
+              {%- if not svc_type -%}
                 {{ ((vmi['resources'] |first)['status']['interfaces'] | first)['ipAddress'] }}
-              {%- elif svc_ep == 'NodePort' -%}
+              {%- elif svc_type == 'NodePort' -%}
                 {{ item.ssh_service.nodePort_host | default('localhost') }}:
                 {{- ((node_port_services.results | selectattr('item.name','==',item.name) | first)['result']['spec']['ports'] | first)['nodePort'] }}
-              {%- elif svc_ep == 'ClusterIP' -%}
+              {%- elif svc_type == 'ClusterIP' -%}
                 {{ (cluster_ip_services.results | selectattr('item.name','==',item.name) | first)['result']['spec']['clusterIP'] }}
               {%- endif -%}
           register: instance_config_dict
