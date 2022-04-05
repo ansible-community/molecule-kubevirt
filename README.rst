@@ -68,7 +68,27 @@ Get access to a Kubernetes cluster then install KubeVirt for `kind <https://kube
 SSH access
 ==========
 
-A Kubernetes Service is created by the driver for SSH access. Current supported Services are ClusterIP and NodePort.
+By default, the driver connects onto ssh via VirtualMachineInstance Pod ip.
+
+Please note molecule needs to be able to route ip to Pods:
+
+* if running Kubernetes with kind:
+
+.. code-block:: shell
+
+  IP=$(docker container inspect kind-control-plane   --format '{{ .NetworkSettings.Networks.kind.IPAddress }}')
+  sudo ip route add 10.244.0.0/16 via $IP # Linux
+  # sudo route -n add 10.244.0.0/16 $IP # MacOSX
+
+* if running Kubernetes with minikube:
+
+.. code-block:: shell
+
+  sudo ip route add 172.17.0.0/16 via $(minikube ip)
+  # sudo route -n add 172.17.0.0/16 $(minikube ip) # MacOSX
+
+
+A Kubernetes Service can de created by the driver for SSH access. Current supported Services are ClusterIP and NodePort.
 
 ClusterIP
 ---------
@@ -124,28 +144,41 @@ Virtual machines can be customized using `domain`, `volumes`, `networks` and `us
 Since the driver already sets some values for molecule to start VMs with no customization, values set in those fields will be merged with default configuration.
 
 
-Disk example
-------------
+Disks and networks
+------------------
 
-Here is an example on how to customize disks. Please note:
+VirtualMachines setup can be fine tuned:
+* `domain` dictionary is merged with default domain
+* `user_data` cloud-config is appened to default
+* `volumes` are appended to defaults
+* `networks` have no default
 
-* user_data is an example for Debian-11; other systems may have different disk name than /dev/vdxxx
-* since the driver creates one disk for OS, plus one disk for cloud-config, additional disk is third known disk (and gets *'c'* index)
+This example configures a specific network, adds a disk backed by an empty volume, then disk is formated and mounted via cloud config:
 
 .. code-block:: yaml
 
+    annotations:
+      - cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
     domain:
       devices:
         disks:
           - name: emptydisk
             disk:
               bus: virtio
+        interfaces:
+          - bridge: {}
+            name: default
+            model: virtio
+            ports:
+              - port: 22
     volumes:
       - name: emptydisk
         emptyDisk:
           capacity: 2Gi
-
-    user_data: |-
+    networks:
+      - name: default
+        pod: {}
+    user_data:
       mounts:
        - [ /dev/vdc, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
       fs_setup:
@@ -154,11 +187,13 @@ Here is an example on how to customize disks. Please note:
           device: /dev/vdc
           overwrite: true
 
+Please take a look at KubeVirt examples to get more uses cases including PersistenVolumes, Multus and more.
 
 Run from inside Kubernetes cluster
 ==================================
 
 You can run this driver with a container running tox and/or molecule. Take a look at:
+
  * Dockerfile_ as a base image
  * test-rolebinding_ file for ServiceAccount example
  * github_workflow_ in step named "Launch test" for a Kubernetes Job running tox
