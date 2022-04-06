@@ -58,13 +58,17 @@ class KubeVirt(Driver):
             cpu_request: (omit)
             memory_limit: memory
             cpu_limit: (omit)
-            image: image_name:tag
-        ssh_service:
-            type: ClusterIP
-            clusterIP: {}
-            nodePort: {}
-            nodePort_host: localhost
-
+            image: quay.io/kubevirt/fedora-cloud-container-disk-demo:latest
+            annotations: {}
+            ssh_service:
+                type: ClusterIP
+                clusterIP: {}
+                nodePort: {}
+                nodePort_host: localhost
+            volumes: []
+            networks: []
+            domain: {} # domain is merged with default
+            user_data: {} # user data cloud-config is merged with default
     Image MUST be accessible on Kubernetes workers running Kubevirt. This driver
     provides no service for building images. Solutions using CDI may be found in
     later version .

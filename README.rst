@@ -26,13 +26,12 @@ Molecule KubeVirt Plugin is designed to allow use of KubeVirt_ containers for pr
 Scope
 =====
 
-Molecule-kubevirt enables running ansible roles tests in a kubernetes cluster.
+Molecule-kubevirt enables running ansible roles tests in a Kubernetes cluster.
 
 Usage
 =====
 
-To use this plugin, you'll need to set the ``driver`` and ``platform``
-variables in your ``molecule.yml``. Here's a simple example using a home made centos docker image for KubeVirt:
+To use this plugin, you'll need to set the ``driver`` and ``platform`` variables in your ``molecule.yml``:
 
 .. code-block:: yaml
 
@@ -45,61 +44,49 @@ variables in your ``molecule.yml``. Here's a simple example using a home made ce
 Installation
 ============
 
-Ansible
--------
+Driver
+------
 
 This driver supports Ansible 2, 3 and 4.
 
-Ansible 2 requires python requirements pinning to:
-
 .. code-block:: shell
 
-  python3 -m pip install 'openshift==0.11.*' 'kubernetes==11.*'
+  # Ansible >2
+  python3 -m pip install molecule-kubevirt
 
-**No depedency required for Ansible >= 3**
+  # Ansible 2
+  python3 -m pip install molecule-kubevirt 'openshift<0.12.0' 'kubernetes<12.0'
 
 
-KubeVirt
---------
+KubeVirt Installation
+---------------------
 
-Get access to a Kubernetes cluster then install KubeVirt for `kind <https://kubevirt.io/quickstart_kind/>`_ or `minkube <https://kubevirt.io/quickstart_minikube/>`_ or `cloud providers <https://kubevirt.io/quickstart_cloud/>`_
+Follow KubeVirt guides for `kind <https://kubevirt.io/quickstart_kind/>`_, `minkube <https://kubevirt.io/quickstart_minikube/>`_, or `cloud providers <https://kubevirt.io/quickstart_cloud/>`_
 
 
 SSH access
 ==========
 
-A Kubernetes Service is created by the driver for SSH access. Current supported Services are ClusterIP and NodePort.
+By default, the driver connects onto ssh via VirtualMachineInstance Pod ip and molecule needs to be able to ssh directly to Pod ip:
 
-ClusterIP
----------
-
-Default SSH Service is ClusterIP and a static clusterIP can be set:
-
-.. code-block:: yaml
-
-  ssh_service:
-    type: ClusterIP
-    clusterIP: 10.96.102.231
-
-Please note molecule needs to be able to route ip to ClusterIPs Services:
-
-* if running Kubernetes with kind:
+* if running local Kubernetes with kind:
 
 .. code-block:: shell
 
-  IP=$(docker container inspect kind-control-plane   --format '{{ .NetworkSettings.Networks.kind.IPAddress }}')
-  sudo ip route add 10.96.0.0/12 via $IP # Linux
-  # sudo route -n add 10.96.0.0/12 $IP # MacOSX
+  IP=$(docker container inspect kind-control-plane --format '{{ .NetworkSettings.Networks.kind.IPAddress }}')
+  sudo ip route add 10.244.0.0/16 via $IP # Linux
+  # sudo route -n add 10.244.0.0/16 $IP # MacOSX
 
-* if running Kubernetes with minikube:
+* if running local Kubernetes with minikube:
 
 .. code-block:: shell
 
-  sudo ip route add 172.17.0.0/16 via $(minikube ip) # Linux
+  sudo ip route add 172.17.0.0/16 via $(minikube ip)
   # sudo route -n add 172.17.0.0/16 $(minikube ip) # MacOSX
 
-If running tox from inside Kubernetes cluster, nothing to do on this item.
+* if running molecule inside the target Kubernetes cluster, routing is ensured by CNI.
 
+A Kubernetes Service can de created by the driver for SSH access. Current supported Services are ClusterIP and NodePort.
 
 NodePort
 --------
@@ -115,14 +102,103 @@ NodePort can be set. Static nodePort can be defined, also host target for port c
     # host where nodePort can be reached
     nodePort_host: localhost
 
+ClusterIP
+---------
+
+Default SSH Service is ClusterIP and a static clusterIP can be set:
+
+.. code-block:: yaml
+
+  ssh_service:
+    type: ClusterIP
+    clusterIP: 10.96.102.231
+
+Molecule then needs to be able to ssh on the ClusterIP ip:
+
+* if running local Kubernetes with Kind:
+
+.. code-block:: shell
+
+  IP=$(docker container inspect kind-control-plane   --format '{{ .NetworkSettings.Networks.kind.IPAddress }}')
+  sudo ip route add 10.96.0.0/12 via $IP # Linux
+  # sudo route -n add 10.96.0.0/12 $IP # MacOSX
+
+* if running local Kubernetes with Minikube, no known solution yet.
+* if running molecule inside the target Kubernetes cluster, routing is ensured by CNI.
+
+
+Virtual machines customisation
+==============================
+
+Virtual machines can be customised using `domain`, `volumes`, `networks` and `user_data`.
+
+Since the driver already sets some values for molecule to start VMs with no customisation, values set in those fields will be merged with default configuration.
+
+
+Full example
+------------
+
+VirtualMachines setup can be fine tuned:
+
+* `annotations` is empty by default
+* `domain` is combined recursive with default, defaults lists are prepend
+* `user_data` cloud-config is combined recursive with default, defaults lists are prepend
+* `volumes` are appended to defaults
+* `networks` is empty by default
+
+This example configures a specific network, adds a disk backed by an empty volume, then disk is formated and mounted via cloud config:
+
+.. code-block:: yaml
+
+    # ask for static IP with Calico
+    annotations:
+      - cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
+    # combine domain to default
+    domain:
+      devices:
+        disks:
+          # add a new disk
+          - name: emptydisk
+            disk:
+              bus: virtio
+        interfaces:
+          # prefer masquerade instead of default bridge
+          - masquerade: {}
+            name: default
+    networks:
+      - name: default
+        # prefer multus instead of pod network as first network
+        multus:
+          default: true
+          networkName: macvlan-test
+    volumes:
+      - name: emptydisk
+        # create a disk inside the VM Pod
+        # can also be backed by PVC, hotspath, etc...
+        emptyDisk:
+          capacity: 2Gi
+    # custom cloud config - additional disks starts at index 3
+    # because both boot and cloud-config disks are created by driver
+    # therefore example additional disk is named 'vd**c**'
+    user_data:
+      fs_setup:
+        - label: data_disk
+          filesystem: 'ext4'
+          device: /dev/vdc
+          overwrite: true
+      mounts:
+       - [ /dev/vdc, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
+
+Please take a look at KubeVirt examples to get more information about more uses cases including PersistenVolumes, Multus, Multi node bridge, and more.
 
 Run from inside Kubernetes cluster
 ==================================
 
 You can run this driver with a container running tox and/or molecule. Take a look at:
- * Dockerfile_ as a base image
- * test-rolebinding_ file for ServiceAccount example
- * github_workflow_ in step named "Launch test" for a Kubernetes Job running tox
+
+* Dockerfile_ as a base image
+* test-rolebinding_ file for ServiceAccount example
+* github_workflow_ in step named "Launch test" for a Kubernetes Job running tox
 
 .. _`test-rolebinding`: /tools/test-rolebinding.yaml
 .. _`Dockerfile`: /tools/Dockerfile
