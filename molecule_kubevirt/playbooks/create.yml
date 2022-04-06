@@ -30,7 +30,7 @@
     - name: Create cloud init with ssh identity for molecule user
       vars:
         user_data: |-
-          {{ item.user_data | default({}) | from_yaml | combine(default_user_data | from_yaml, recursive=True, list_merge='append') }}
+          {{ item.user_data | default({}) | from_yaml | combine(default_user_data | from_yaml, recursive=True, list_merge='prepend') }}
         default_user_data: |-
           users:
             - name: {{ item.user_name | default(default_user_name) }}

@@ -67,9 +67,7 @@ Follow KubeVirt guides for `kind <https://kubevirt.io/quickstart_kind/>`_, `mink
 SSH access
 ==========
 
-By default, the driver connects onto ssh via VirtualMachineInstance Pod ip.
-
-If molecule runs outside of the target Kubernetes cluster, a route to Pods must be defined:
+By default, the driver connects onto ssh via VirtualMachineInstance Pod ip and molecule needs to be able to ssh directly to Pod ip:
 
 * if running local Kubernetes with kind:
 
@@ -115,7 +113,7 @@ Default SSH Service is ClusterIP and a static clusterIP can be set:
     type: ClusterIP
     clusterIP: 10.96.102.231
 
-If molecule runs outside of the target Kubernetes cluster, a route to Services must be defined:
+Molecule then needs to be able to ssh on the ClusterIP ip:
 
 * if running local Kubernetes with Kind:
 
