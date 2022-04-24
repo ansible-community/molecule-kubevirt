@@ -2,10 +2,11 @@
 import pathlib
 import shutil
 import subprocess
+import yaml
 
 from molecule import logger
 from molecule.test.conftest import change_dir_to
-from molecule.util import run_command
+from molecule.util import run_command,safe_load_file,safe_dump,write_file
 
 LOG = logger.get_logger(__name__)
 
@@ -19,36 +20,28 @@ def format_result(result: subprocess.CompletedProcess):
     )
 
 
-def test_command_init_and_test_scenario(tmp_path: pathlib.Path, DRIVER: str) -> None:
-    """Verify that init scenario works."""
+
+def test_defaults_supercharge(tmp_path: pathlib.Path, DRIVER: str) -> None:
+    """Verify that supercharge scenario works."""
     shutil.rmtree(tmp_path, ignore_errors=True)
     tmp_path.mkdir(exist_ok=True)
 
-    scenario_name = "default"
+    cmd = ["molecule", "create", "-s", "tests"]
 
-    with change_dir_to(tmp_path):
+    result = run_command(cmd)
+    assert result.returncode == 0
 
-        scenario_directory = tmp_path / "molecule" / scenario_name
-        cmd = [
-            "molecule",
-            "init",
-            "scenario",
-            "--driver-name",
-            DRIVER,
-        ]
-        result = run_command(cmd)
-        assert result.returncode == 0
 
-        assert scenario_directory.exists()
+    cmd = ["kubectl", "get", "VirtualMachine", "instance-full", "-o", "yaml"] 
+    result = run_command(cmd)
+    result_yaml=yaml.safe_load(result.stdout)
 
-        # run molecule reset as this may clean some leftovers from other
-        # test runs and also ensure that reset works.
-        result = run_command(["molecule", "reset"])  # default sceanario
-        assert result.returncode == 0
+    cmd = ["kubectl", "get", "secret", "instance-full", "-o", "yaml"] 
+    result = run_command(cmd)
+    result_yaml=yaml.safe_load(result.stdout)
 
-        result = run_command(["molecule", "reset", "-s", scenario_name])
-        assert result.returncode == 0
+    cmd = ["molecule", "destroy", "-s", "tests"] 
+    result = run_command(cmd)
+    assert result.returncode == 0
 
-        cmd = ["molecule", "--debug", "test", "-s", scenario_name]
-        result = run_command(cmd)
-        assert result.returncode == 0
+    assert result.returncode == 99

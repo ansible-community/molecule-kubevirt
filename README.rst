@@ -134,10 +134,6 @@ Virtual machines can be customised using `domain`, `volumes`, `networks` and `us
 
 Since the driver already sets some values for molecule to start VMs with no customisation, values set in those fields will be merged with default configuration.
 
-
-Full example
-------------
-
 VirtualMachines setup can be fine tuned:
 
 * `annotations` is empty by default
@@ -148,48 +144,74 @@ VirtualMachines setup can be fine tuned:
 
 This example configures a specific network, adds a disk backed by an empty volume, then disk is formated and mounted via cloud config:
 
-.. code-block:: yaml
+Customization example
+---------------------
 
-    # ask for static IP with Calico
+.. code-block:: yaml
+---
+dependency:
+  name: galaxy
+driver:
+  name: kubevirt
+platforms:
+  - name: instance-enriched
+    ssh_service: 
+      type: NodePort
     annotations:
-      - cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
-    # combine domain to default
+      cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
+    # use data volume facility in place of using 'image:'
+    dataVolumeTemplates:
+      - metadata:
+          name: disk-dv
+        spec:
+          pvc:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 10Gi
+          preallocation: true
+          source:
+            http:
+              url: https://download.fedoraproject.org/pub/fedora/linux/releases/35/Cloud/x86_64/images/Fedora-Cloud-Base-35-1.2.x86_64.raw.xz 
     domain:
       devices:
+        interfaces:
+          # add a second device interface
+          - bridge: {}
+            name: multus
+            model: virtio
+            ports:
+              - port: 22 
         disks:
-          # add a new disk
+          #add a second device disk
           - name: emptydisk
             disk:
               bus: virtio
-        interfaces:
-          # prefer masquerade instead of default bridge
-          - masquerade: {}
-            name: default
-    networks:
-      - name: default
-        # prefer multus instead of pod network as first network
-        multus:
-          default: true
-          networkName: macvlan-test
     volumes:
+        # ovverride default 'boot' volume with cdi data volume template source
+      - name: boot
+        dataVolume:
+          name: disk-dv
+       # add a second volume, must be same name as defined in device 
       - name: emptydisk
-        # create a disk inside the VM Pod
-        # can also be backed by PVC, hotspath, etc...
         emptyDisk:
           capacity: 2Gi
-    # custom cloud config - additional disks starts at index 3
-    # because both boot and cloud-config disks are created by driver
-    # therefore example additional disk is named 'vd**c**'
+    networks:
+      # add a second network
+      - name: multus
+        multus:
+          networkName: macvlan-conf
     user_data:
+      mounts:
+       - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
       fs_setup:
         - label: data_disk
           filesystem: 'ext4'
-          device: /dev/vdc
+          device: /dev/vdb
           overwrite: true
-      mounts:
-       - [ /dev/vdc, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
 
-Please take a look at KubeVirt examples to get more information about more uses cases including PersistenVolumes, Multus, Multi node bridge, and more.
+See `molecule/tests/molecule.yml` for full example.
 
 Run from inside Kubernetes cluster
 ==================================

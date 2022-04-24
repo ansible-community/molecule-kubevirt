@@ -49,29 +49,42 @@ class KubeVirt(Driver):
           - name: instance
             namespace: default
             wait_timeout: 300
+            terminationGracePeriodSeconds: 0
             memory: 2Gi
+            image: quay.io/kubevirt/fedora-cloud-container-disk-demo:latest
+
+            annotations: (omit)
+
             cpu_cores: (omit)
             machine_type: q35
             cpu_model: (omit)
-            autoattachGraphicsDevice: false
+
+            autoattachGraphicsDevice: (omit)
+
             memory_request: memory
             cpu_request: (omit)
             memory_limit: memory
             cpu_limit: (omit)
-            image: quay.io/kubevirt/fedora-cloud-container-disk-demo:latest
-            annotations: {}
+
             ssh_service:
                 type: ClusterIP
                 clusterIP: {}
                 nodePort: {}
                 nodePort_host: localhost
+
             volumes: []
             networks: []
-            domain: {} # domain is merged with default
-            user_data: {} # user data cloud-config is merged with default
-    Image MUST be accessible on Kubernetes workers running Kubevirt. This driver
-    provides no service for building images. Solutions using CDI may be found in
-    later version .
+
+            domain: {}
+            user_data: {}
+
+            hostname: (omit)
+            livenessProbe: (omit)
+            nodeSelector: (omit)
+            readinessProbe: (omit)
+            subdomain: (omit)
+            tolerations: (omit)
+
 
     Minimal authorizations are required for the molecule runner if running from Kubernetes, via ServiceAccount :
     .. code-block::yaml
