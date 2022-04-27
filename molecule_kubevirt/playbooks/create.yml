@@ -15,6 +15,9 @@
     default_vm_machine_type: "q35"
     default_vm_disk_image: "quay.io/kubevirt/fedora-cloud-container-disk-demo"
     default_ssh_timeout: 300
+    default_ssh_delay: 1
+    default_pod_ip_retries: 300
+    default_pod_ip_delay: 1
     default_ssh_service_type: ClusterIP
     default_termination_grace_perdiod: 0
     default_boot_disk:
@@ -233,7 +236,8 @@
       loop_control:
         label: "{{ item.name }}"
       register: virtual_machine_info
-      retries: 300
+      retries: "{{ item.pod_ip_retries | default(default_pod_ip_retries) }}"
+      delay: "{{ item.pod_ip_delay | default(default_pod_ip_delay) }}"
       until: "virtual_machine_info.resources[0].status.interfaces[0].ipAddress | default(None)"
       when:
         - item.ssh_service is not defined
@@ -273,32 +277,16 @@
           set_fact:
             instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
 
-        - name: Async start ssh access test
+        - name: Ssh access test
           wait_for:
             timeout: "{{ item.ssh_timeout | default(default_ssh_timeout) }}"
             port: "{{ item.port | default('22') }}"
             host: "{{ item.address }}"
-            delay: 1
+            delay: "{{ item.ssh_delay | default(default_ssh_delay) }}"
           loop: "{{ instance_conf | default([]) }}"
           loop_control:
             label: "{{ item.instance }}"
-          async: "{{ item.ssh_timeout | default(default_ssh_timeout) }}"
-          poll: 0
-          register: ssh_reg
           when: "item.running | default(true)"
-
-        - name: SSH test
-          async_status:
-            jid: "{{ async_result_item.ansible_job_id }}"
-          loop: "{{ ssh_reg.results }}"
-          loop_control:
-            loop_var: "async_result_item"
-            label: "{{ async_result_item.item.instance }}"
-          register: async_poll_results
-          until: async_poll_results.finished
-          delay: 1
-          retries: "{{ item['ansible_facts']['instance_conf_dict']['ssh_timeout'] | default(default_ssh_timeout) }}"
-          when: async_result_item.changed
 
     - name: Dump instance config
       copy:
