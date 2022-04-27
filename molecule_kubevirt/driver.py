@@ -86,18 +86,8 @@ class KubeVirt(Driver):
             tolerations: (omit)
 
 
-    Minimal authorizations are required for the molecule runner if running from Kubernetes, via ServiceAccount :
-    .. code-block::yaml
-        roleRef:
-          apiGroup: rbac.authorization.k8s.io
-          kind: ClusterRole
-          name: kubevirt.io:edit
 
-    .. note:: This driver does not require specific container privileges.
-
-    .. note:: Default ssh access is curently set via a ClusterIp Service and points to
-    {{ platform.name }}.{{ platform.namespace }}.svc
-    . This may change in futur releases.
+    .. note:: Default ssh access point to VM Pod IP
 
     .. code-block:: bash
 
@@ -110,8 +100,6 @@ class KubeVirt(Driver):
 
         driver:
           name: kubevirt
-          safe_files:
-            - foo
 
     .. _`Kubevirt`: https://kubevirt.io/
     """  # noqa

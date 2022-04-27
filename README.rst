@@ -19,8 +19,6 @@ Molecule KubeVirt Plugin
 
 Molecule KubeVirt Plugin is designed to allow use of KubeVirt_ containers for provisioning test resources.
 
-**Very alpha version - All configuration fields and behaviours may be subject to breaking changes**
-
 .. _`KubeVirt`: https://kubevirt.io
 
 Scope
@@ -130,19 +128,17 @@ Molecule then needs to be able to ssh on the ClusterIP ip:
 Virtual machines customisation
 ==============================
 
-Virtual machines can be customised using `domain`, `volumes`, `networks` and `user_data`.
+A few defaults are created if not provided in platfom definition:
 
-Since the driver already sets some values for molecule to start VMs with no customisation, values set in those fields will be merged with default configuration.
+* if no interface with :code:`name: default` is defined in :code:`domain.devices.interfaces`, then a default one is created with :code:`brige: {}` and :code:`bus: virtio`,
+* if no disk with :code:`name: boot` is defined in :code:`domain.devices.disks`, then a default one is created with :code:`bus: virtio`,
+* if no network with :code:`name: default` is defined in :code:`networks`, then a default one is created with :code:`pod: {}` and :code:`model: virtio`,
+* if no volume with :code:`name: boot` is defined in :code:`volumes`, then a default one is created as:
 
-VirtualMachines setup can be fine tuned:
+  * a :code:`containerDisk`
+  * with :code:`image`, :code:`path` and :code:`imagePullPolicy` respectively set to plaform :code:`image`, :code:`image_path` and :code:`image_pull_policy`
 
-* `annotations` is empty by default
-* `domain` is combined recursive with default, defaults lists are prepend
-* `user_data` cloud-config is combined recursive with default, defaults lists are prepend
-* `volumes` are appended to defaults
-* `networks` is empty by default
-
-This example configures a specific network, adds a disk backed by an empty volume, then disk is formated and mounted via cloud config:
+* if cloud-config is defined in :code:`user_data` it is merged default one wich sets ssh public key for 'molecule' user.
 
 Customisation example
 ---------------------
@@ -156,6 +152,7 @@ Customisation example
     name: kubevirt
   platforms:
     - name: instance-smart
+      # annotate for calico static ip
       annotations:
         cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
       # use data volume facility in place of using 'image:'
@@ -183,12 +180,12 @@ Customisation example
               ports:
                 - port: 22
           disks:
-            #add a second device disk
+            # add a second device disk
             - name: emptydisk
               disk:
                 bus: virtio
       volumes:
-          # ovverride default 'boot' volume with cdi data volume template source
+          # override default 'boot' volume with cdi data volume template source
         - name: boot
           dataVolume:
             name: disk-dv
@@ -197,9 +194,10 @@ Customisation example
           emptyDisk:
             capacity: 2Gi
       networks:
-        # add a second network
+        # add a second network for added device interface
         - name: multus
           multus:
+            # use a NetworkAttachement
             networkName: macvlan-conf
       # cloud-config format and mount additional disk
       user_data:
@@ -213,7 +211,7 @@ Customisation example
         mounts:
           - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
 
-See `molecule/tests/molecule.yml` for full example.
+See `molecule/tests/molecule.yml` from source code for full example. Also please take a look at KubeVirt api specs and cloud-config docs for more informations.
 
 Run from inside Kubernetes cluster
 ==================================
