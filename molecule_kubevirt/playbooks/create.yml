@@ -3,6 +3,7 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  strategy: debug
   no_log: "{{ molecule_no_log }}"
   vars:
     molecule_labels:
@@ -15,7 +16,7 @@
     default_vm_disk_image: "quay.io/kubevirt/fedora-cloud-container-disk-demo"
     default_ssh_timeout: 300
     default_ssh_service_type: ClusterIP
-    default_termination_grace_perdiod: 0 
+    default_termination_grace_perdiod: 0
     default_boot_disk:
       disk:
         bus: virtio
@@ -87,36 +88,36 @@
           name: cloudinit
 
         # Merge device diskes: if one is named 'boot': use it against default driver defined
-        # If other disks are defined, append them 
+        # If other disks are defined, append them
         platform_boot_disk: "{{ (item.domain.devices.disks | default([]) | selectattr('name','==','boot')) | default(None) }}"
         platform_other_disks: "{{ (item.domain.devices.disks | default([]) | rejectattr('name','==','boot')) | default(None) }}"
         target_disks: |-
-          {{ platform_boot_disk | ternary(platform_boot_disk,[default_boot_disk]) + 
+          {{ platform_boot_disk | ternary(platform_boot_disk,[default_boot_disk]) +
              platform_other_disks + [default_cloud_init_disk] }}
 
         # Merge disk volumes: if one is named 'boot': use it against default driver defined
-        # If other volumes are defined, append them 
+        # If other volumes are defined, append them
         platform_container_disk_volume: "{{ (item.volumes | default([]) | selectattr('name','==','boot')) | default(None) }}"
         platform_other_default_cloud_init_volume: "{{ (item.volumes | default([]) | rejectattr('name','==','boot')) | default(None) }}"
         target_volumes: |-
-          {{ platform_container_disk_volume | ternary(platform_container_disk_volume,[default_container_disk_volume]) + 
+          {{ platform_container_disk_volume | ternary(platform_container_disk_volume,[default_container_disk_volume]) +
             platform_other_default_cloud_init_volume + [default_cloud_init_volume]}}
 
         # Merge interfaces: if one is named 'default': use it against default driver defined
-        # If other interfaces are defined, append them 
+        # If other interfaces are defined, append them
         platform_interface: "{{ (item.domain.devices.interfaces | default([]) | selectattr('name','==','default')) | default(None) }}"
         platform_other_interface: "{{ (item.domain.devices.interfaces | default([]) | rejectattr('name','==','default')) | default(None) }}"
         target_interfaces: |-
           {{ platform_interface | ternary(platform_interface,[default_interface]) + platform_other_interface }}
 
         # Merge networks: if one is named 'default': use it against default driver defined
-        # If other networks are defined, append them 
+        # If other networks are defined, append them
         platform_network: "{{ (item.networks | default([]) | selectattr('name','==','default')) | default(None) }}"
         platform_other_network: "{{ (item.networks | default([]) | rejectattr('name','==','default')) | default(None) }}"
         target_networks: |-
           {{ platform_network | ternary(platform_network,[default_network]) + platform_other_network }}
 
-        # define target VM domain
+        # Define target VM domain
         prepared_domain:
           devices:
             autoattachGraphicsDevice: "{{ item.affinity | default(omit) }}"
@@ -129,7 +130,7 @@
             limits:
               memory: "{{ item.memory_limit | default(item.domain.resources.limits.memory) | default(default_vm_memory) }}"
               cpu: "{{ item.cpu_limit | default(item.domain.resources.limits.cpu) | default(omit) }}"
-        # define target VM specs
+        # Define target VM specs
         template_spec: |-
             domain: {{ item.domain | default({}) | combine(prepared_domain, recursive=True, list_merge='replace') }}
             volumes: {{ target_volumes }}
@@ -234,7 +235,7 @@
       register: virtual_machine_info
       retries: 300
       until: "virtual_machine_info.resources[0].status.interfaces[0].ipAddress | default(None)"
-      when: 
+      when:
         - item.ssh_service is not defined
         - item.running | default(true)
 
@@ -252,7 +253,7 @@
               identity_file: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
           vars:
             vmi: "{{ virtual_machine_info.results | selectattr('item.name','==',item.name) | first }}"
-            # Also: should get a 'local node port' for nodePort kind usage for example 
+            # Also: should get a 'local node port' for nodePort kind usage for example
             ssh_service_address: >-
               {%- set svc_type = item.ssh_service.type | default(None) -%}
               {%- if not svc_type -%}

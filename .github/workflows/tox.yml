@@ -26,27 +26,27 @@ jobs:
           - tox_env: lint
           # - tox_env: docs
           - tox_env: py36-ansible_2
-            PREFIX: PYTEST_REQPASS=2
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.6
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py36-ansible_2-devel
-            PREFIX: PYTEST_REQPASS=2
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.6
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py37-ansible_3
-            PREFIX: PYTEST_REQPASS=2
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.7
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py38-ansible_4
-            PREFIX: PYTEST_REQPASS=2
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.8
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py39-ansible_2
-            PREFIX: PYTEST_REQPASS=2
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.9
             KUBERNETES_VERSION: v1.22.2
           - tox_env: py39-ansible_2-devel
-            PREFIX: PYTEST_REQPASS=2
+            PREFIX: PYTEST_REQPASS=3
             PYTHON_BASE_IMAGE: python:3.9
             KUBERNETES_VERSION: v1.22.2
           - tox_env: packaging
@@ -171,7 +171,7 @@ jobs:
         run: |
           kubectl apply -f https://projectcalico.docs.tigera.io/manifests/calico.yaml
           echo "*******************************"
-          # FIXME activate wait for less flakyness 
+          # FIXME activate wait for less flakyness
           sleep 30 && kubectl -n kube-system set env daemonset/calico-node FELIX_IGNORELOOSERPF=true
 
       - name: Install Multus and configure one net-attach
@@ -287,7 +287,7 @@ jobs:
                     args: ["(tox -e ${{ matrix.tox_env }} -c /opt/molecule_kubevirt/tox.ini ; kubectl create configmap molecule-result --from-literal exitCode=\$?); kubectl delete configmap molecule-job-running"]
                     env:
                       - name: PYTEST_REQPASS
-                        value: "2"
+                        value: "3"
                   restartPolicy: Never
               backoffLimit: 0
             EOF

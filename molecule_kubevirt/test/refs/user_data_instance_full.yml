@@ -1,0 +1,20 @@
+#cloud-config
+fs_setup:
+-   device: /dev/vdb
+    filesystem: ext4
+    label: data_disk
+    overwrite: true
+mounts:
+-   - /dev/vdb
+    - /var/lib/software
+    - auto
+    - defaults,nofail
+    - '0'
+    - '0'
+users:
+-   lock_passwd: false
+    name: molecule
+    plain_text_passwd: molecule
+    ssh_authorized_keys:
+    - ""
+    sudo: ALL=(ALL) NOPASSWD:ALL

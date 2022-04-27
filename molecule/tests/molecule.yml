@@ -20,7 +20,7 @@ platforms:
         spec:
           pvc:
             accessModes:
-            - ReadWriteOnce
+              - ReadWriteOnce
             resources:
               requests:
                 storage: 10Gi
@@ -40,31 +40,31 @@ platforms:
             ports:
               - port: 22
           # add another interface
-          - name: multus 
+          - name: multus
             bridge: {}
             model: virtio
             ports:
-              - port: 22 
+              - port: 22
         disks:
-          # override default boot device disk
+          # override default boot device disk
           - name: boot
             disk:
               bus: scsi
-          # add a second disk
+          # add a second disk
           - name: emptydisk
             disk:
               bus: virtio
     volumes:
-      # override default boot volume
+      # override default boot volume
       - name: boot
         dataVolume:
           name: disk-dv-instance-full
-       # add a second volume
+      # add a second volume
       - name: emptydisk
         emptyDisk:
           capacity: 2Gi
     networks:
-      # override default network
+      # override default network
       - name: default
         pod: {}
       # add a second network
@@ -72,17 +72,19 @@ platforms:
         multus:
           networkName: macvlan-conf
     user_data:
-      mounts:
-       - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
+      # format additional disk
       fs_setup:
         - label: data_disk
           filesystem: 'ext4'
           device: /dev/vdb
           overwrite: true
-    # Test only: non running VMs can be tested without waiting ssh to be ready.
+      # mount additional disk
+      mounts:
+        - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
+    # Use for creation test only: non running VMs specs can be tested without waiting ssh to be ready.
     # Requires ssh_service to be activated since VM won't get IP from non created Pod
     running: false
-    ssh_service: 
+    ssh_service:
       type: NodePort
 provisioner:
   name: ansible

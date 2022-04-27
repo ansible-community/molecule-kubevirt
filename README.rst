@@ -144,72 +144,74 @@ VirtualMachines setup can be fine tuned:
 
 This example configures a specific network, adds a disk backed by an empty volume, then disk is formated and mounted via cloud config:
 
-Customization example
+Customisation example
 ---------------------
 
 .. code-block:: yaml
----
-dependency:
-  name: galaxy
-driver:
-  name: kubevirt
-platforms:
-  - name: instance-enriched
-    ssh_service: 
-      type: NodePort
-    annotations:
-      cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
-    # use data volume facility in place of using 'image:'
-    dataVolumeTemplates:
-      - metadata:
-          name: disk-dv
-        spec:
-          pvc:
-            accessModes:
-            - ReadWriteOnce
-            resources:
-              requests:
-                storage: 10Gi
-          preallocation: true
-          source:
-            http:
-              url: https://download.fedoraproject.org/pub/fedora/linux/releases/35/Cloud/x86_64/images/Fedora-Cloud-Base-35-1.2.x86_64.raw.xz 
-    domain:
-      devices:
-        interfaces:
-          # add a second device interface
-          - bridge: {}
-            name: multus
-            model: virtio
-            ports:
-              - port: 22 
-        disks:
-          #add a second device disk
-          - name: emptydisk
-            disk:
-              bus: virtio
-    volumes:
-        # ovverride default 'boot' volume with cdi data volume template source
-      - name: boot
-        dataVolume:
-          name: disk-dv
-       # add a second volume, must be same name as defined in device 
-      - name: emptydisk
-        emptyDisk:
-          capacity: 2Gi
-    networks:
-      # add a second network
-      - name: multus
-        multus:
-          networkName: macvlan-conf
-    user_data:
-      mounts:
-       - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
-      fs_setup:
-        - label: data_disk
-          filesystem: 'ext4'
-          device: /dev/vdb
-          overwrite: true
+
+  ---
+  dependency:
+    name: galaxy
+  driver:
+    name: kubevirt
+  platforms:
+    - name: instance-smart
+      annotations:
+        cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
+      # use data volume facility in place of using 'image:'
+      dataVolumeTemplates:
+        - metadata:
+            name: disk-dv
+          spec:
+            pvc:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 10Gi
+            preallocation: true
+            source:
+              http:
+                url: https://download.fedoraproject.org/pub/fedora/linux/releases/35/Cloud/x86_64/images/Fedora-Cloud-Base-35-1.2.x86_64.raw.xz
+      domain:
+        devices:
+          interfaces:
+            # add a second device interface
+            - bridge: {}
+              name: multus
+              model: virtio
+              ports:
+                - port: 22
+          disks:
+            #add a second device disk
+            - name: emptydisk
+              disk:
+                bus: virtio
+      volumes:
+          # ovverride default 'boot' volume with cdi data volume template source
+        - name: boot
+          dataVolume:
+            name: disk-dv
+        # add a second volume, must be same name as defined in device
+        - name: emptydisk
+          emptyDisk:
+            capacity: 2Gi
+      networks:
+        # add a second network
+        - name: multus
+          multus:
+            networkName: macvlan-conf
+      # cloud-config format and mount additional disk
+      user_data:
+        # format additional disk
+        fs_setup:
+          - label: data_disk
+            filesystem: 'ext4'
+            device: /dev/vdb
+            overwrite: true
+        # mount additional disk
+        mounts:
+          - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
 
 See `molecule/tests/molecule.yml` for full example.
 
