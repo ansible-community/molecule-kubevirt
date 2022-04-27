@@ -1,0 +1,10 @@
+---
+extends: default
+ignore: |
+  molecule_kubevirt/test/refs
+  # .tox
+  # .git
+  # vault.yml
+  # roles-dependencies
+  # collections-dependencies
+  # molecule

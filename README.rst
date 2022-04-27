@@ -211,7 +211,7 @@ Customisation example
         mounts:
           - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
 
-See `molecule/tests/molecule.yml` from source code for full example. Also please take a look at KubeVirt api specs and cloud-config docs for more informations.
+See `molecule/tests/molecule.yml` from source code for full example including default devices overrides.
 
 Run from inside Kubernetes cluster
 ==================================
