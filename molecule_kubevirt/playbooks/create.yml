@@ -3,20 +3,16 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  strategy: debug
   no_log: "{{ molecule_no_log }}"
   vars:
-    molecule_labels:
-      owner: molecule
     default_namespace: "default"
     default_user_name: "molecule"
-    default_vm_timeout: 60
     default_vm_memory: "2Gi"
     default_vm_machine_type: "q35"
     default_vm_disk_image: "quay.io/kubevirt/fedora-cloud-container-disk-demo"
     default_ssh_timeout: 300
     default_ssh_delay: 1
-    default_pod_ip_retries: 300
+    default_pod_ip_retries: 60
     default_pod_ip_delay: 1
     default_ssh_service_type: ClusterIP
     default_termination_grace_perdiod: 0
@@ -55,8 +51,6 @@
           users:
             - name: {{ item.user_name | default(default_user_name) }}
               sudo: ALL=(ALL) NOPASSWD:ALL
-              plain_text_passwd: molecule
-              lock_passwd: false
               ssh_authorized_keys:
                 - {{ lookup('file', ssh_key_path + '.pub' ) }}
       k8s:
@@ -156,7 +150,7 @@
           kind: VirtualMachine
           metadata:
             name: "{{ item.name }}"
-            namespace: default
+            namespace: "{{ item.namespace | default(default_namespace) }}"
           spec:
             running: "{{ item.running | default(true) }}"
             dataVolumeTemplates: "{{ item.dataVolumeTemplates | default(omit) }}"
@@ -227,7 +221,7 @@
           loop_control:
             label: "{{ item.name }}"
 
-    - name: Get ip for VirtualMachineInstance
+    - name: Get ip for VirtualMachineInstance for ssh access
       k8s_info:
         kind: VirtualMachineInstance
         namespace: "{{ item.namespace | default(default_namespace) }}"
@@ -243,50 +237,48 @@
         - item.ssh_service is not defined
         - item.running | default(true)
 
-    - name: SSH check block
-      block:
-        - name: Populate instance config dict
-          set_fact:
-            instance_conf_dict:
-              # if not running, ssh access will not be tested
-              running: "{{ item.running | default(true) }}"
-              instance: "{{ item.name }}"
-              address: "{{ ssh_service_address }}"
-              user: "{{ item.user_name | default('molecule') }}"
-              port: "22"
-              identity_file: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
-          vars:
-            vmi: "{{ virtual_machine_info.results | selectattr('item.name','==',item.name) | first }}"
-            # Also: should get a 'local node port' for nodePort kind usage for example
-            ssh_service_address: >-
-              {%- set svc_type = item.ssh_service.type | default(None) -%}
-              {%- if not svc_type -%}
-                {{ ((vmi['resources'] |first)['status']['interfaces'] | first)['ipAddress'] }}
-              {%- elif svc_type == 'NodePort' -%}
-                {{ item.ssh_service.nodePort_host | default('localhost') }}:
-                {{- ((node_port_services.results | selectattr('item.name','==',item.name) | first)['result']['spec']['ports'] | first)['nodePort'] }}
-              {%- elif svc_type == 'ClusterIP' -%}
-                {{ (cluster_ip_services.results | selectattr('item.name','==',item.name) | first)['result']['spec']['clusterIP'] }}
-              {%- endif -%}
-          register: instance_config_dict
-          loop: "{{ molecule_yml.platforms }}"
-          loop_control:
-            label: "{{ item.name }}"
+    - name: Populate instance config dict
+      set_fact:
+        instance_conf_dict:
+          # if not running, ssh access will not be tested
+          running: "{{ item.running | default(true) }}"
+          instance: "{{ item.name }}"
+          address: "{{ ssh_service_address }}"
+          user: "{{ item.user_name | default('molecule') }}"
+          port: "22"
+          identity_file: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
+      vars:
+        vmi: "{{ virtual_machine_info.results | selectattr('item.name','==',item.name) | first }}"
+        # Also: should get a 'local node port' for nodePort kind usage for example
+        ssh_service_address: >-
+          {%- set svc_type = item.ssh_service.type | default(None) -%}
+          {%- if not svc_type -%}
+            {{ ((vmi['resources'] |first)['status']['interfaces'] | first)['ipAddress'] }}
+          {%- elif svc_type == 'NodePort' -%}
+            {{ item.ssh_service.nodePort_host | default('localhost') }}:
+            {{- ((node_port_services.results | selectattr('item.name','==',item.name) | first)['result']['spec']['ports'] | first)['nodePort'] }}
+          {%- elif svc_type == 'ClusterIP' -%}
+            {{ (cluster_ip_services.results | selectattr('item.name','==',item.name) | first)['result']['spec']['clusterIP'] }}
+          {%- endif -%}
+      register: instance_config_dict
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        label: "{{ item.name }}"
 
-        - name: Convert instance config dict to a list
-          set_fact:
-            instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
+    - name: Convert instance config dict to a list
+      set_fact:
+        instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
 
-        - name: Ssh access test
-          wait_for:
-            timeout: "{{ item.ssh_timeout | default(default_ssh_timeout) }}"
-            port: "{{ item.port | default('22') }}"
-            host: "{{ item.address }}"
-            delay: "{{ item.ssh_delay | default(default_ssh_delay) }}"
-          loop: "{{ instance_conf | default([]) }}"
-          loop_control:
-            label: "{{ item.instance }}"
-          when: "item.running | default(true)"
+    - name: Ssh access test - timeout={{ item.ssh_timeout | default(default_ssh_timeout) }}
+      wait_for:
+        timeout: "{{ item.ssh_timeout | default(default_ssh_timeout) }}"
+        port: "{{ item.port | default('22') }}"
+        host: "{{ item.address }}"
+        delay: "{{ item.ssh_delay | default(default_ssh_delay) }}"
+      loop: "{{ instance_conf | default([]) }}"
+      loop_control:
+        label: "{{ item.instance }} -> {{ item.address }} timeout={{ item.ssh_timeout | default(default_ssh_timeout) }}"
+      when: "item.running | default(true)"
 
     - name: Dump instance config
       copy:
