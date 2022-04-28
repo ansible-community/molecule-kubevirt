@@ -1,7 +1,4 @@
 ---
 - name: Converge
   hosts: all
-  tasks:
-    - name: "Include molecule-kubevirt"
-      include_role:
-        name: "molecule-kubevirt"
+  gather_facts: false

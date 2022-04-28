@@ -4,9 +4,8 @@ dependency:
 driver:
   name: kubevirt
 platforms:
-  - &instance_definition
-    name: instance-full
-    namespace: default
+  - name: instance-full
+    namespace: kube-public
     # image: localhost:5001/kubevirt/fedora-cloud-container-disk-demo
     autoattachGraphicsDevice: false
     hostname: "myhost"
@@ -74,6 +73,9 @@ platforms:
         multus:
           networkName: macvlan-conf
     user_data:
+      users:
+        - name: user2
+          sudo: "false"
       # format additional disk
       fs_setup:
         - label: data_disk
@@ -83,21 +85,24 @@ platforms:
       # mount additional disk
       mounts:
         - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
+    ssh_service:
+      type: NodePort
+    user_molecule:
+      name: notmolecule
+      gecos: "dummy user"
+      plain_text_passwd: notmolecule
+      ssh_authorized_keys:
+        - XXX
+      sudo:
+        - ALL=(ALL) NOPASSWD:/bin/mysql
     # Use for creation test only: non running VMs specs can be tested without waiting ssh to be ready.
     # Requires ssh_service to be activated since VM won't get IP from non created Pod
     running: false
+
+  - name: instance-almost-default
     ssh_service:
       type: NodePort
-
-  - <<: *instance_definition
-    name: instance-full-2
-    annotations: {}
-    # Just for test !
-    namespace: kube-system
-
-  - <<: *instance_definition
-    name: instance-full-3
-
+    running: false
 provisioner:
   name: ansible
 verifier:

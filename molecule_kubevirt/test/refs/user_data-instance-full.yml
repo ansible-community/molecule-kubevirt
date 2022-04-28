@@ -12,9 +12,12 @@ mounts:
     - '0'
     - '0'
 users:
--   lock_passwd: false
-    name: molecule
-    plain_text_passwd: molecule
+-   gecos: dummy user
+    name: notmolecule
+    plain_text_passwd: notmolecule
     ssh_authorized_keys:
     - ""
-    sudo: ALL=(ALL) NOPASSWD:ALL
+    sudo:
+    - ALL=(ALL) NOPASSWD:/bin/mysql
+-   name: user2
+    sudo: 'false'

@@ -6,7 +6,10 @@
   no_log: "{{ molecule_no_log }}"
   vars:
     default_namespace: "default"
-    default_user_name: "molecule"
+    default_user_molecule:
+      name: "molecule"
+      sudo:
+        - ALL=(ALL) NOPASSWD:ALL
     default_vm_memory: "2Gi"
     default_vm_machine_type: "q35"
     default_vm_disk_image: "quay.io/kubevirt/fedora-cloud-container-disk-demo"
@@ -45,14 +48,17 @@
 
     - name: Create cloud init with ssh identity for molecule user
       vars:
-        user_data: |-
-          {{ item.user_data | default({}) | from_yaml | combine(default_user_data | from_yaml, recursive=True, list_merge='prepend') }}
         default_user_data: |-
           users:
-            - name: {{ item.user_name | default(default_user_name) }}
-              sudo: ALL=(ALL) NOPASSWD:ALL
-              ssh_authorized_keys:
-                - {{ lookup('file', ssh_key_path + '.pub' ) }}
+            - {{ combined_molecule_user }}
+        user_molecule_authorized_keys:
+          ssh_authorized_keys:
+            - "{{ lookup('file', ssh_key_path + '.pub' ) }}"
+        # molecule user in user data is a merge of default, platform and forced ssh authorized key
+        combined_molecule_user: "{{ default_user_molecule | combine(item.user_molecule|default(None)) | combine (user_molecule_authorized_keys, list_merge='append') }}"
+        # user data is a merge of platform and molecule user
+        user_data: |-
+          {{ item.user_data | default({}) | from_yaml | combine(default_user_data | from_yaml, recursive=True, list_merge='prepend') }}
       k8s:
         state: present
         definition:
@@ -125,7 +131,7 @@
               memory: "{{ item.memory_request | default(item.domain.resources.requests.memoy) | default(default_vm_memory) }}"
               cpu: "{{ item.cpu_request | default(item.domain.resources.requests.cpu) | default(omit) }}"
             limits:
-              memory: "{{ item.memory_limit | default(item.domain.resources.limits.memory) | default(default_vm_memory) }}"
+              memory: "{{ item.memory_limit | default(item.domain.resources.limits.memory) | default(omit) }}"
               cpu: "{{ item.cpu_limit | default(item.domain.resources.limits.cpu) | default(omit) }}"
         # Define target VM specs
         template_spec: |-
@@ -244,7 +250,7 @@
           running: "{{ item.running | default(true) }}"
           instance: "{{ item.name }}"
           address: "{{ ssh_service_address }}"
-          user: "{{ item.user_name | default('molecule') }}"
+          user: "{{ item.user_molecule.name | default(default_user_molecule.name) }}"
           port: "22"
           identity_file: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
       vars:
