@@ -143,6 +143,14 @@ A few defaults are created if not provided in platfom definition:
 Customisation example
 ---------------------
 
+This example configuration demonstrates how to:
+
+* use Kubevirt's CDI in place of an :code:`image` using :code:`dataVolumeTemplates` and overriding default :code:`boot` volume.
+* set customs ressources and annotation
+* and a second interface/network
+* adds a second disk/volume
+* make use of cloud-config to format and mount additional disk
+
 .. code-block:: yaml
 
   ---
@@ -151,7 +159,7 @@ Customisation example
   driver:
     name: kubevirt
   platforms:
-    - name: instance-smart
+    - name: instance
       # annotate for calico static ip
       annotations:
         cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
@@ -218,7 +226,7 @@ Customisation example
         mounts:
           - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
 
-See `molecule/tests/molecule.yml` from source code for full example including default devices overrides.
+See `molecule/tests/molecule.yml` from source code for full example.
 
 Run from inside Kubernetes cluster
 ==================================
