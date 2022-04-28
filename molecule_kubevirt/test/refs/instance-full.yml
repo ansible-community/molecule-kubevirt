@@ -27,7 +27,7 @@ spec:
         devices:
           disks:
           - disk:
-              bus: scsi
+              bus: virtio
             name: boot
           - disk:
               bus: virtio

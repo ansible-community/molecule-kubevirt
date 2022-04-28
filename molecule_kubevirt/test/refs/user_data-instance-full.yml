@@ -20,4 +20,6 @@ users:
     sudo:
     - ALL=(ALL) NOPASSWD:/bin/mysql
 -   name: user2
-    sudo: 'false'
+    ssh_authorized_keys:
+    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDJRj9o4jhKW0Q6KnWa2jkThu/I070SJ+NBMDkP4ZXNu/t9Oq55Siz2dw6miwAjRVDfbB5HScM6XNJFWfPg10tY9ZUEizTirM5HeT8D+R5IvugfyqFeYs5d5V7X5O/TVJkNFUmqpA9TZYvoBUKsjnH4lH2/sPhtT13qUCLZNheUeQ==
+    sudo: false

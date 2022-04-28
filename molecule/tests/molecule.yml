@@ -57,7 +57,7 @@ platforms:
           # override default boot device disk
           - name: boot
             disk:
-              bus: scsi
+              bus: virtio
           # add a second disk
           - name: emptydisk
             disk:
@@ -79,10 +79,14 @@ platforms:
       - name: multus
         multus:
           networkName: macvlan-conf
+    # custom cloud-config - see cloud-config doc
     user_data:
+      # add a second user
       users:
         - name: user2
-          sudo: "false"
+          sudo: false
+          ssh_authorized_keys:
+            - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDJRj9o4jhKW0Q6KnWa2jkThu/I070SJ+NBMDkP4ZXNu/t9Oq55Siz2dw6miwAjRVDfbB5HScM6XNJFWfPg10tY9ZUEizTirM5HeT8D+R5IvugfyqFeYs5d5V7X5O/TVJkNFUmqpA9TZYvoBUKsjnH4lH2/sPhtT13qUCLZNheUeQ==
       # format additional disk
       fs_setup:
         - label: data_disk
@@ -94,12 +98,15 @@ platforms:
         - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
     ssh_service:
       type: NodePort
+    # custom cloud-config of molecule user - see cloud-config doc
     user_molecule:
       name: notmolecule
       gecos: "dummy user"
       plain_text_passwd: notmolecule
+      lock_passwd: false
+      # more authorized keys can be provided but the one created by driver is always inserted in the list
       ssh_authorized_keys:
-        - XXX
+        - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDJRj9o4jhKW0Q6KnWa2jkThu/I070SJ+NBMDkP4ZXNu/t9Oq55Siz2dw6miwAjRVDfbB5HScM6XNJFWfPg10tY9ZUEizTirM5HeT8D+R5IvugfyqFeYs5d5V7X5O/TVJkNFUmqpA9TZYvoBUKsjnH4lH2/sPhtT13qUCLZNheUeQ==XXX
       sudo:
         - ALL=(ALL) NOPASSWD:/bin/mysql
     # Use for creation test only: non running VMs specs can be tested without waiting ssh to be ready.
