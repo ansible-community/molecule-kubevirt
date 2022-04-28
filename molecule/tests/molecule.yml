@@ -4,7 +4,9 @@ dependency:
 driver:
   name: kubevirt
 platforms:
-  - name: instance-full
+  - &instance_definition
+    name: instance-full
+    namespace: default
     # image: localhost:5001/kubevirt/fedora-cloud-container-disk-demo
     autoattachGraphicsDevice: false
     hostname: "myhost"
@@ -86,6 +88,16 @@ platforms:
     running: false
     ssh_service:
       type: NodePort
+
+  - <<: *instance_definition
+    name: instance-full-2
+    annotations: {}
+    # Just for test !
+    namespace: kube-system
+
+  - <<: *instance_definition
+    name: instance-full-3
+
 provisioner:
   name: ansible
 verifier:
