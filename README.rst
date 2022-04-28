@@ -171,6 +171,13 @@ Customisation example
               http:
                 url: https://download.fedoraproject.org/pub/fedora/linux/releases/35/Cloud/x86_64/images/Fedora-Cloud-Base-35-1.2.x86_64.raw.xz
       domain:
+        resources:
+          limits:
+            cpu: "1"
+            memory: 3Gi
+          requests:
+            cpu: 200m
+            memory: 1Gi
         devices:
           interfaces:
             # add a second device interface

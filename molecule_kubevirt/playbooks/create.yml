@@ -128,7 +128,7 @@
             interfaces: "{{ target_interfaces }}"
           resources:
             requests:
-              memory: "{{ item.memory_request | default(item.domain.resources.requests.memoy) | default(default_vm_memory) }}"
+              memory: "{{ item.memory_request | default(item.domain.resources.requests.memory) | default(default_vm_memory) }}"
               cpu: "{{ item.cpu_request | default(item.domain.resources.requests.cpu) | default(omit) }}"
             limits:
               memory: "{{ item.memory_limit | default(item.domain.resources.limits.memory) | default(omit) }}"
