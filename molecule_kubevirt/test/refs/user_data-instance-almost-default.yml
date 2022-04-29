@@ -1,0 +1,7 @@
+#cloud-config
+users:
+-   name: molecule
+    ssh_authorized_keys:
+    - ""
+    sudo:
+    - ALL=(ALL) NOPASSWD:ALL

@@ -49,42 +49,45 @@ class KubeVirt(Driver):
           - name: instance
             namespace: default
             wait_timeout: 300
+            terminationGracePeriodSeconds: 0
             memory: 2Gi
+            image: quay.io/kubevirt/fedora-cloud-container-disk-demo:latest
+
+            annotations: (omit)
+
             cpu_cores: (omit)
             machine_type: q35
             cpu_model: (omit)
-            autoattachGraphicsDevice: false
+
+            autoattachGraphicsDevice: (omit)
+
             memory_request: memory
             cpu_request: (omit)
             memory_limit: memory
             cpu_limit: (omit)
-            image: quay.io/kubevirt/fedora-cloud-container-disk-demo:latest
-            annotations: {}
+
             ssh_service:
                 type: ClusterIP
                 clusterIP: {}
                 nodePort: {}
                 nodePort_host: localhost
+
             volumes: []
             networks: []
-            domain: {} # domain is merged with default
-            user_data: {} # user data cloud-config is merged with default
-    Image MUST be accessible on Kubernetes workers running Kubevirt. This driver
-    provides no service for building images. Solutions using CDI may be found in
-    later version .
 
-    Minimal authorizations are required for the molecule runner if running from Kubernetes, via ServiceAccount :
-    .. code-block::yaml
-        roleRef:
-          apiGroup: rbac.authorization.k8s.io
-          kind: ClusterRole
-          name: kubevirt.io:edit
+            domain: {}
+            user_data: {}
 
-    .. note:: This driver does not require specific container privileges.
+            hostname: (omit)
+            livenessProbe: (omit)
+            nodeSelector: (omit)
+            readinessProbe: (omit)
+            subdomain: (omit)
+            tolerations: (omit)
 
-    .. note:: Default ssh access is curently set via a ClusterIp Service and points to
-    {{ platform.name }}.{{ platform.namespace }}.svc
-    . This may change in futur releases.
+
+
+    .. note:: Default ssh access point to VM Pod IP
 
     .. code-block:: bash
 
@@ -97,8 +100,6 @@ class KubeVirt(Driver):
 
         driver:
           name: kubevirt
-          safe_files:
-            - foo
 
     .. _`Kubevirt`: https://kubevirt.io/
     """  # noqa

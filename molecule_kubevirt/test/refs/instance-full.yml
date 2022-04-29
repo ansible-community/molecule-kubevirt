@@ -1,0 +1,77 @@
+spec:
+  dataVolumeTemplates:
+  - metadata:
+      creationTimestamp: null
+      name: disk-dv-instance-full
+    spec:
+      preallocation: true
+      pvc:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+      source:
+        http:
+          url: https://download.fedoraproject.org/pub/fedora/linux/releases/35/Cloud/x86_64/images/Fedora-Cloud-Base-35-1.2.x86_64.raw.xz
+  running: false
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipAddrs: '["10.244.25.25"]'
+      creationTimestamp: null
+      labels:
+        vm.cnv.io/name: instance-full
+    spec:
+      domain:
+        devices:
+          disks:
+          - disk:
+              bus: virtio
+            name: boot
+          - disk:
+              bus: virtio
+            name: emptydisk
+          - disk:
+              bus: virtio
+            name: cloudinit
+          interfaces:
+          - bridge: {}
+            model: e1000
+            name: default
+            ports:
+            - port: 22
+          - bridge: {}
+            model: virtio
+            name: multus
+            ports:
+            - port: 22
+        machine:
+          type: q35
+        resources:
+          limits:
+            cpu: "1"
+            memory: 3Gi
+          requests:
+            cpu: 200m
+            memory: 1Gi
+      hostname: myhost
+      networks:
+      - name: default
+        pod: {}
+      - multus:
+          networkName: macvlan-conf
+        name: multus
+      subdomain: my-domain
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - dataVolume:
+          name: disk-dv-instance-full
+        name: boot
+      - emptyDisk:
+          capacity: 2Gi
+        name: emptydisk
+      - cloudInitNoCloud:
+          secretRef:
+            name: instance-full
+        name: cloudinit

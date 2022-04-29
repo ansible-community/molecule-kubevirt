@@ -1,22 +1,12 @@
 """Functional tests."""
 import pathlib
 import shutil
-import subprocess
 
 from molecule import logger
 from molecule.test.conftest import change_dir_to
 from molecule.util import run_command
 
 LOG = logger.get_logger(__name__)
-
-
-def format_result(result: subprocess.CompletedProcess):
-    """Return friendly representation of completed process run."""
-    return (
-        f"RC: {result.returncode}\n"
-        + f"STDOUT: {result.stdout}\n"
-        + f"STDERR: {result.stderr}"
-    )
 
 
 def test_command_init_and_test_scenario(tmp_path: pathlib.Path, DRIVER: str) -> None:

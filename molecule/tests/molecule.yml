@@ -1,0 +1,123 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: kubevirt
+platforms:
+  - name: instance-full
+    namespace: kube-public
+    # image: localhost:5001/kubevirt/fedora-cloud-container-disk-demo
+    autoattachGraphicsDevice: false
+    hostname: "myhost"
+    livenessProbe: ""
+    nodeSelector: ""
+    readinessProbe: ""
+    subdomain: "my-domain"
+    terminationGracePeriodSeconds: 30
+    tolerations: []
+    dataVolumeTemplates:
+      - metadata:
+          name: disk-dv-instance-full
+        spec:
+          pvc:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 10Gi
+          preallocation: true
+          source:
+            http:
+              url: https://download.fedoraproject.org/pub/fedora/linux/releases/35/Cloud/x86_64/images/Fedora-Cloud-Base-35-1.2.x86_64.raw.xz
+    annotations:
+      cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
+    domain:
+      resources:
+        limits:
+          cpu: "1"
+          memory: 3Gi
+        requests:
+          cpu: 200m
+          memory: 1Gi
+      devices:
+        interfaces:
+          # override default interface
+          - name: default
+            bridge: {}
+            model: e1000
+            ports:
+              - port: 22
+          # add another interface
+          - name: multus
+            bridge: {}
+            model: virtio
+            ports:
+              - port: 22
+        disks:
+          # override default boot device disk
+          - name: boot
+            disk:
+              bus: virtio
+          # add a second disk
+          - name: emptydisk
+            disk:
+              bus: virtio
+    volumes:
+      # override default boot volume
+      - name: boot
+        dataVolume:
+          name: disk-dv-instance-full
+      # add a second volume
+      - name: emptydisk
+        emptyDisk:
+          capacity: 2Gi
+    networks:
+      # override default network
+      - name: default
+        pod: {}
+      # add a second network
+      - name: multus
+        multus:
+          networkName: macvlan-conf
+    # custom cloud-config - see cloud-config doc
+    user_data:
+      # add a second user
+      users:
+        - name: user2
+          sudo: false
+          ssh_authorized_keys:
+            - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDJRj9o4jhKW0Q6KnWa2jkThu/I070SJ+NBMDkP4ZXNu/t9Oq55Siz2dw6miwAjRVDfbB5HScM6XNJFWfPg10tY9ZUEizTirM5HeT8D+R5IvugfyqFeYs5d5V7X5O/TVJkNFUmqpA9TZYvoBUKsjnH4lH2/sPhtT13qUCLZNheUeQ==
+      # format additional disk
+      fs_setup:
+        - label: data_disk
+          filesystem: 'ext4'
+          device: /dev/vdb
+          overwrite: true
+      # mount additional disk
+      mounts:
+        - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
+    ssh_service:
+      type: NodePort
+    # custom cloud-config of molecule user - see cloud-config doc
+    user_molecule:
+      name: notmolecule
+      gecos: "dummy user"
+      plain_text_passwd: notmolecule
+      lock_passwd: false
+      # more authorized keys can be provided but the one created by driver is always inserted in the list
+      ssh_authorized_keys:
+        - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDJRj9o4jhKW0Q6KnWa2jkThu/I070SJ+NBMDkP4ZXNu/t9Oq55Siz2dw6miwAjRVDfbB5HScM6XNJFWfPg10tY9ZUEizTirM5HeT8D+R5IvugfyqFeYs5d5V7X5O/TVJkNFUmqpA9TZYvoBUKsjnH4lH2/sPhtT13qUCLZNheUeQ==XXX
+      sudo:
+        - ALL=(ALL) NOPASSWD:/bin/mysql
+    # Use for creation test only: non running VMs specs can be tested without waiting ssh to be ready.
+    # Requires ssh_service to be activated since VM won't get IP from non created Pod
+    running: false
+
+  - name: instance-almost-default
+    ssh_service:
+      type: NodePort
+    running: false
+provisioner:
+  name: ansible
+verifier:
+  name: ansible

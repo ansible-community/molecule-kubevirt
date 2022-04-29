@@ -19,8 +19,6 @@ Molecule KubeVirt Plugin
 
 Molecule KubeVirt Plugin is designed to allow use of KubeVirt_ containers for provisioning test resources.
 
-**Very alpha version - All configuration fields and behaviours may be subject to breaking changes**
-
 .. _`KubeVirt`: https://kubevirt.io
 
 Scope
@@ -130,66 +128,105 @@ Molecule then needs to be able to ssh on the ClusterIP ip:
 Virtual machines customisation
 ==============================
 
-Virtual machines can be customised using `domain`, `volumes`, `networks` and `user_data`.
+A few defaults are created if not provided in platfom definition:
 
-Since the driver already sets some values for molecule to start VMs with no customisation, values set in those fields will be merged with default configuration.
+* if no interface with :code:`name: default` is defined in :code:`domain.devices.interfaces`, then a default one is created with :code:`brige: {}` and :code:`bus: virtio`,
+* if no disk with :code:`name: boot` is defined in :code:`domain.devices.disks`, then a default one is created with :code:`bus: virtio`,
+* if no network with :code:`name: default` is defined in :code:`networks`, then a default one is created with :code:`pod: {}` and :code:`model: virtio`,
+* if no volume with :code:`name: boot` is defined in :code:`volumes`, then a default one is created as:
 
+  * a :code:`containerDisk`
+  * with :code:`image`, :code:`path` and :code:`imagePullPolicy` respectively set to plaform :code:`image`, :code:`image_path` and :code:`image_pull_policy`
 
-Full example
-------------
+* if cloud-config is defined in :code:`user_data` it is merged default one wich sets ssh public key for 'molecule' user.
 
-VirtualMachines setup can be fine tuned:
+Customisation example
+---------------------
 
-* `annotations` is empty by default
-* `domain` is combined recursive with default, defaults lists are prepend
-* `user_data` cloud-config is combined recursive with default, defaults lists are prepend
-* `volumes` are appended to defaults
-* `networks` is empty by default
+This example configuration demonstrates how to:
 
-This example configures a specific network, adds a disk backed by an empty volume, then disk is formated and mounted via cloud config:
+* use Kubevirt's CDI in place of an :code:`image` using :code:`dataVolumeTemplates` and overriding default :code:`boot` volume.
+* set customs ressources and annotation
+* and a second interface/network
+* adds a second disk/volume
+* make use of cloud-config to format and mount additional disk
 
 .. code-block:: yaml
 
-    # ask for static IP with Calico
-    annotations:
-      - cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
-    # combine domain to default
-    domain:
-      devices:
-        disks:
-          # add a new disk
-          - name: emptydisk
-            disk:
-              bus: virtio
-        interfaces:
-          # prefer masquerade instead of default bridge
-          - masquerade: {}
-            name: default
-    networks:
-      - name: default
-        # prefer multus instead of pod network as first network
-        multus:
-          default: true
-          networkName: macvlan-test
-    volumes:
-      - name: emptydisk
-        # create a disk inside the VM Pod
-        # can also be backed by PVC, hotspath, etc...
-        emptyDisk:
-          capacity: 2Gi
-    # custom cloud config - additional disks starts at index 3
-    # because both boot and cloud-config disks are created by driver
-    # therefore example additional disk is named 'vd**c**'
-    user_data:
-      fs_setup:
-        - label: data_disk
-          filesystem: 'ext4'
-          device: /dev/vdc
-          overwrite: true
-      mounts:
-       - [ /dev/vdc, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
+  ---
+  dependency:
+    name: galaxy
+  driver:
+    name: kubevirt
+  platforms:
+    - name: instance
+      # annotate for calico static ip
+      annotations:
+        cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
+      # use data volume facility in place of using 'image:'
+      dataVolumeTemplates:
+        - metadata:
+            name: disk-dv
+          spec:
+            pvc:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 10Gi
+            preallocation: true
+            source:
+              http:
+                url: https://download.fedoraproject.org/pub/fedora/linux/releases/35/Cloud/x86_64/images/Fedora-Cloud-Base-35-1.2.x86_64.raw.xz
+      domain:
+        resources:
+          limits:
+            cpu: "1"
+            memory: 3Gi
+          requests:
+            cpu: 200m
+            memory: 1Gi
+        devices:
+          interfaces:
+            # add a second device interface
+            - bridge: {}
+              name: multus
+              model: virtio
+              ports:
+                - port: 22
+          disks:
+            # add a second device disk
+            - name: emptydisk
+              disk:
+                bus: virtio
+      volumes:
+          # override default 'boot' volume with cdi data volume template source
+        - name: boot
+          dataVolume:
+            name: disk-dv
+        # add a second volume, must be same name as defined in device
+        - name: emptydisk
+          emptyDisk:
+            capacity: 2Gi
+      networks:
+        # add a second network for added device interface
+        - name: multus
+          multus:
+            # use a NetworkAttachement
+            networkName: macvlan-conf
+      # cloud-config format and mount additional disk
+      user_data:
+        # format additional disk
+        fs_setup:
+          - label: data_disk
+            filesystem: 'ext4'
+            device: /dev/vdb
+            overwrite: true
+        # mount additional disk
+        mounts:
+          - [ /dev/vdb, /var/lib/software, "auto", "defaults,nofail", "0", "0" ]
 
-Please take a look at KubeVirt examples to get more information about more uses cases including PersistenVolumes, Multus, Multi node bridge, and more.
+See `molecule/tests/molecule.yml` from source code for full example.
 
 Run from inside Kubernetes cluster
 ==================================

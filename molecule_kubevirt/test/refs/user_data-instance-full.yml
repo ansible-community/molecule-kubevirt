@@ -1,0 +1,26 @@
+#cloud-config
+fs_setup:
+-   device: /dev/vdb
+    filesystem: ext4
+    label: data_disk
+    overwrite: true
+mounts:
+-   - /dev/vdb
+    - /var/lib/software
+    - auto
+    - defaults,nofail
+    - '0'
+    - '0'
+users:
+-   gecos: dummy user
+    name: notmolecule
+    lock_passwd: false
+    plain_text_passwd: notmolecule
+    ssh_authorized_keys:
+    - ""
+    sudo:
+    - ALL=(ALL) NOPASSWD:/bin/mysql
+-   name: user2
+    ssh_authorized_keys:
+    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDJRj9o4jhKW0Q6KnWa2jkThu/I070SJ+NBMDkP4ZXNu/t9Oq55Siz2dw6miwAjRVDfbB5HScM6XNJFWfPg10tY9ZUEizTirM5HeT8D+R5IvugfyqFeYs5d5V7X5O/TVJkNFUmqpA9TZYvoBUKsjnH4lH2/sPhtT13qUCLZNheUeQ==
+    sudo: false
