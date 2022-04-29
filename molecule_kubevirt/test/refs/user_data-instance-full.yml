@@ -14,6 +14,7 @@ mounts:
 users:
 -   gecos: dummy user
     name: notmolecule
+    lock_passwd: false
     plain_text_passwd: notmolecule
     ssh_authorized_keys:
     - ""
