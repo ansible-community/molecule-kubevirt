@@ -21,10 +21,12 @@ Molecule KubeVirt Plugin is designed to allow use of KubeVirt_ containers for pr
 
 .. _`KubeVirt`: https://kubevirt.io
 
-Scope
-=====
+Supported Platforms
+===================
 
-Molecule-kubevirt enables running ansible roles tests in a Kubernetes cluster.
+Works with any OS distributed as cloud-config_ compatible image (also known as "Cloud images").
+
+.. _`cloud-config`: https://cloudinit.readthedocs.io/en/latest/topics/availability.html
 
 Usage
 =====
@@ -84,7 +86,7 @@ By default, the driver connects onto ssh via VirtualMachineInstance Pod ip and m
 
 * if running molecule inside the target Kubernetes cluster, routing is ensured by CNI.
 
-A Kubernetes Service can de created by the driver for SSH access. Current supported Services are ClusterIP and NodePort.
+A Kubernetes Service can be created by the driver for SSH access. Current supported Services are ClusterIP and NodePort.
 
 NodePort
 --------
