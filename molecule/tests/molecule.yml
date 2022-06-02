@@ -111,12 +111,12 @@ platforms:
         - ALL=(ALL) NOPASSWD:/bin/mysql
     # Use for creation test only: non running VMs specs can be tested without waiting ssh to be ready.
     # Requires ssh_service to be activated since VM won't get IP from non created Pod
-    running: false
+    runStrategy: Halted
 
   - name: instance-almost-default
     ssh_service:
       type: NodePort
-    running: false
+    runStrategy: Halted
 provisioner:
   name: ansible
 verifier:

@@ -6,6 +6,7 @@
   no_log: "{{ molecule_no_log }}"
   vars:
     default_namespace: "default"
+    default_runStrategy: "Always"
     default_user_molecule:
       name: "molecule"
       sudo:
@@ -158,7 +159,8 @@
             name: "{{ item.name }}"
             namespace: "{{ item.namespace | default(default_namespace) }}"
           spec:
-            running: "{{ item.running | default(true) }}"
+            running: "{{ item.running | default(omit) }}"
+            runStrategy: "{{ item.runStrategy | default(default_runStrategy) if not item.running|default(None) else omit }}"
             dataVolumeTemplates: "{{ item.dataVolumeTemplates | default(omit) }}"
             template:
               metadata:
@@ -247,7 +249,7 @@
       set_fact:
         instance_conf_dict:
           # if not running, ssh access will not be tested
-          running: "{{ item.running | default(true) }}"
+          runStrategy: "{{ item.runStrategy | default(default_runStrategy) if not item.running|default(None) else omit }}"
           instance: "{{ item.name }}"
           address: "{{ ssh_service_address }}"
           user: "{{ item.user_molecule.name | default(default_user_molecule.name) }}"
@@ -275,7 +277,7 @@
       set_fact:
         instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
 
-    - name: Ssh access test - timeout={{ item.ssh_timeout | default(default_ssh_timeout) }}
+    - name: Ssh access test
       wait_for:
         timeout: "{{ item.ssh_timeout | default(default_ssh_timeout) }}"
         port: "{{ item.port | default('22') }}"
@@ -284,7 +286,7 @@
       loop: "{{ instance_conf | default([]) }}"
       loop_control:
         label: "{{ item.instance }} -> {{ item.address }} timeout={{ item.ssh_timeout | default(default_ssh_timeout) }}"
-      when: "item.running | default(true)"
+      when: "item.runStrategy | default(default_runStrategy) != 'Halted'"
 
     - name: Dump instance config
       copy:

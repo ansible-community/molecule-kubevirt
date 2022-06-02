@@ -51,6 +51,7 @@ class KubeVirt(Driver):
             wait_timeout: 300
             terminationGracePeriodSeconds: 0
             memory: 2Gi
+            runStrategy: Always
             image: quay.io/kubevirt/fedora-cloud-container-disk-demo:latest
 
             annotations: (omit)

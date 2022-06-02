@@ -1,5 +1,5 @@
 spec:
-  running: false
+  runStrategy: Halted
   template:
     metadata:
       creationTimestamp: null
