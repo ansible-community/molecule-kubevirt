@@ -283,7 +283,7 @@ jobs:
                     args: ["(tox -e ${{ matrix.tox_env }} -c /opt/molecule_kubevirt/tox.ini ; kubectl create configmap molecule-result --from-literal exitCode=\$?); kubectl delete configmap molecule-job-running"]
                     env:
                       - name: PYTEST_REQPASS
-                        value: "6"
+                        value: "5"
                   restartPolicy: Never
               backoffLimit: 0
             EOF

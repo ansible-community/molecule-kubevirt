@@ -117,6 +117,12 @@ platforms:
     ssh_service:
       type: NodePort
     runStrategy: Halted
+
+  - name: instance-running-false
+    ssh_service:
+      type: NodePort
+    # running should not conflict with default runStrategy
+    running: false
 provisioner:
   name: ansible
 verifier:

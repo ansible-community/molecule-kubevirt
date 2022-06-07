@@ -243,7 +243,7 @@
       until: "virtual_machine_info.resources[0].status.interfaces[0].ipAddress | default(None)"
       when:
         - item.ssh_service is not defined
-        - item.runStrategy | default(default_runStrategy) != 'Halted' 
+        - item.runStrategy | default(default_runStrategy) != 'Halted'
         - item.running|default(None) != false
 
     - name: Populate instance config dict

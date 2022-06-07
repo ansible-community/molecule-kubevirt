@@ -1,0 +1,39 @@
+spec:
+  running: false
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        vm.cnv.io/name: instance-running-false
+    spec:
+      domain:
+        devices:
+          disks:
+          - disk:
+              bus: virtio
+            name: boot
+          - disk:
+              bus: virtio
+            name: cloudinit
+          interfaces:
+          - bridge: {}
+            model: virtio
+            name: default
+        machine:
+          type: q35
+        resources:
+          requests:
+            memory: 2Gi
+      networks:
+      - name: default
+        pod: {}
+      terminationGracePeriodSeconds: 0
+      volumes:
+      - containerDisk:
+          image: quay.io/kubevirt/fedora-cloud-container-disk-demo
+          imagePullPolicy: IfNotPresent
+        name: boot
+      - cloudInitNoCloud:
+          secretRef:
+            name: instance-running-false
+        name: cloudinit
