@@ -6,6 +6,7 @@
   no_log: "{{ molecule_no_log }}"
   vars:
     default_namespace: "default"
+    default_runStrategy: "Always"
     default_user_molecule:
       name: "molecule"
       sudo:
@@ -158,7 +159,8 @@
             name: "{{ item.name }}"
             namespace: "{{ item.namespace | default(default_namespace) }}"
           spec:
-            running: "{{ item.running | default(true) }}"
+            running: "{{ item.running | default(omit) }}"
+            runStrategy: "{{ item.runStrategy | default(default_runStrategy) if item.running is not defined else omit }}"
             dataVolumeTemplates: "{{ item.dataVolumeTemplates | default(omit) }}"
             template:
               metadata:
@@ -241,13 +243,14 @@
       until: "virtual_machine_info.resources[0].status.interfaces[0].ipAddress | default(None)"
       when:
         - item.ssh_service is not defined
-        - item.running | default(true)
+        - item.runStrategy | default(default_runStrategy) != 'Halted'
+        - item.running|default(None) != false
 
     - name: Populate instance config dict
       set_fact:
         instance_conf_dict:
           # if not running, ssh access will not be tested
-          running: "{{ item.running | default(true) }}"
+          ssh_test: "{{ item.runStrategy | default(default_runStrategy) != 'Halted' and item.running|default(None) != false }}"
           instance: "{{ item.name }}"
           address: "{{ ssh_service_address }}"
           user: "{{ item.user_molecule.name | default(default_user_molecule.name) }}"
@@ -275,7 +278,7 @@
       set_fact:
         instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
 
-    - name: Ssh access test - timeout={{ item.ssh_timeout | default(default_ssh_timeout) }}
+    - name: Ssh access test
       wait_for:
         timeout: "{{ item.ssh_timeout | default(default_ssh_timeout) }}"
         port: "{{ item.port | default('22') }}"
@@ -284,7 +287,7 @@
       loop: "{{ instance_conf | default([]) }}"
       loop_control:
         label: "{{ item.instance }} -> {{ item.address }} timeout={{ item.ssh_timeout | default(default_ssh_timeout) }}"
-      when: "item.running | default(true)"
+      when: "item.ssh_test"
 
     - name: Dump instance config
       copy:

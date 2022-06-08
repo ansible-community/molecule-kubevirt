@@ -1,10 +1,10 @@
 spec:
-  runStrategy: Halted
+  running: false
   template:
     metadata:
       creationTimestamp: null
       labels:
-        vm.cnv.io/name: instance-almost-default
+        vm.cnv.io/name: instance-running-false
     spec:
       domain:
         devices:
@@ -35,5 +35,5 @@ spec:
         name: boot
       - cloudInitNoCloud:
           secretRef:
-            name: instance-almost-default
+            name: instance-running-false
         name: cloudinit
