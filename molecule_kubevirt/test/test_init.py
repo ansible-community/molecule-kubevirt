@@ -1,5 +1,6 @@
 """Functional tests."""
 import pathlib
+import re
 import shutil
 
 from molecule import logger
@@ -42,3 +43,20 @@ def test_command_init_and_test_scenario(tmp_path: pathlib.Path, DRIVER: str) -> 
         cmd = ["molecule", "--debug", "test", "-s", scenario_name]
         result = run_command(cmd)
         assert result.returncode == 0
+
+        #  After destroy check if everything handled by driver is cleared
+        cmd = [
+            "kubectl",
+            "-n",
+            "default",
+            "get",
+            "vms,secrets,services",
+            "-o",
+            "name",
+        ]
+        result = run_command(cmd)
+        assert result.returncode == 0
+        assert re.match(
+            "service/kubernetes|secret/molecule-kubevirt-|secret/default-token-",
+            result.stdout,
+        )
