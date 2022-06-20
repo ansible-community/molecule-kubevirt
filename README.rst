@@ -243,11 +243,6 @@ You can run this driver with a container running tox and/or molecule. Take a loo
 .. _`Dockerfile`: /tools/Dockerfile
 .. _`github_workflow`: .github/workflows/tox.yml
 
-Demo
-====
-
-Testing nginx ansible role with KubeVirt, via github actions: `jseguillon/ansible-role-nginx <https://github.com/jseguillon/ansible-role-nginx>`_
-
 
 Get Involved
 ============
