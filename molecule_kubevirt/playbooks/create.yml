@@ -14,7 +14,7 @@
     default_vm_memory: "2Gi"
     default_vm_machine_type: "q35"
     default_vm_disk_image: "quay.io/containerdisks/fedora:latest"
-    default_ssh_timeout: 300
+    default_ssh_timeout: 600
     default_ssh_delay: 1
     default_pod_ip_retries: 60
     default_pod_ip_delay: 1
