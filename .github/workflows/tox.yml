@@ -74,6 +74,7 @@ jobs:
           # check if https://github.com/actions/virtual-environments/issues/5806 is source of the failing builds
           echo 'APT::Get::Always-Include-Phased-Updates "true";' | sudo tee -a /etc/apt/apt.conf.d/99-phased-updates
           sudo apt-get update
+          sudo apt-get upgrade
 
       - name: Install docker
         uses: nick-invision/retry@v2
