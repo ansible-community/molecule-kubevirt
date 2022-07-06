@@ -73,22 +73,7 @@ jobs:
         run: |
           grep -H '' /etc/apt/sources.list
           grep -H '' cat /etc/apt/sources.list.d/*
-          cat <<EOF | sudo tee /etc/apt/sources.list
-          deb http://archive.ubuntu.com/ubuntu/ focal main restricted universe multiverse
-          deb-src http://archive.ubuntu.com/ubuntu/ focal main restricted universe multiverse
-
-          deb http://archive.ubuntu.com/ubuntu/ focal-updates main restricted universe multiverse
-          deb-src http://archive.ubuntu.com/ubuntu/ focal-updates main restricted universe multiverse
-
-          deb http://archive.ubuntu.com/ubuntu/ focal-security main restricted universe multiverse
-          deb-src http://archive.ubuntu.com/ubuntu/ focal-security main restricted universe multiverse
-
-          deb http://archive.ubuntu.com/ubuntu/ focal-backports main restricted universe multiverse
-          deb-src http://archive.ubuntu.com/ubuntu/ focal-backports main restricted universe multiverse
-
-          deb http://archive.canonical.com/ubuntu focal partner
-          deb-src http://archive.canonical.com/ubuntu focal partner
-          EOF
+          sudo curl -SL https://gist.githubusercontent.com/ishad0w/788555191c7037e249a439542c53e170/raw/3822ba49241e6fd851ca1c1cbcc4d7e87382f484/sources.list -o /etc/apt/sources.list
           
           rm /etc/apt/sources.list.d/microsoft-*
           
