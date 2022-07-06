@@ -73,9 +73,27 @@ jobs:
         run: |
           grep -H '' /etc/apt/sources.list
           grep -H '' cat /etc/apt/sources.list.d/*
-          exit 1
+          cat <<EOF | sudo tee /etc/apt/sources.list
+          deb http://archive.ubuntu.com/ubuntu/ focal main restricted universe multiverse
+          deb-src http://archive.ubuntu.com/ubuntu/ focal main restricted universe multiverse
+
+          deb http://archive.ubuntu.com/ubuntu/ focal-updates main restricted universe multiverse
+          deb-src http://archive.ubuntu.com/ubuntu/ focal-updates main restricted universe multiverse
+
+          deb http://archive.ubuntu.com/ubuntu/ focal-security main restricted universe multiverse
+          deb-src http://archive.ubuntu.com/ubuntu/ focal-security main restricted universe multiverse
+
+          deb http://archive.ubuntu.com/ubuntu/ focal-backports main restricted universe multiverse
+          deb-src http://archive.ubuntu.com/ubuntu/ focal-backports main restricted universe multiverse
+
+          deb http://archive.canonical.com/ubuntu focal partner
+          deb-src http://archive.canonical.com/ubuntu focal partner
+          EOF
+          
+          rm /etc/apt/sources.list.d/microsoft-*
+          
           # check if https://github.com/actions/virtual-environments/issues/5806 is source of the failing builds
-          echo 'APT::Get::Always-Include-Phased-Updates "true";' | sudo tee -a /etc/apt/apt.conf.d/99-phased-updates
+          # echo 'APT::Get::Always-Include-Phased-Updates "true";' | sudo tee -a /etc/apt/apt.conf.d/99-phased-updates
           sudo apt-get update
           sudo apt-get upgrade
 
