@@ -71,6 +71,8 @@ jobs:
 
       - name: Update packages index
         run: |
+          # check if https://github.com/actions/virtual-environments/issues/5806 is source of the failing builds
+          echo 'APT::Get::Always-Include-Phased-Updates "true";' | sudo tee -a /etc/apt/apt.conf.d/99-phased-updates
           sudo apt-get update
 
       - name: Install docker
