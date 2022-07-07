@@ -79,6 +79,7 @@ jobs:
           echo 'APT::Get::Always-Include-Phased-Updates "true";' | sudo tee -a /etc/apt/apt.conf.d/99-phased-updates
           sudo apt-get update
           sudo apt-get upgrade
+          sudo apt-get install libudev1=249.11-0ubuntu3.3 libudev-dev=249.11-0ubuntu3.3 -y
 
       - name: Install docker
         uses: nick-invision/retry@v2
