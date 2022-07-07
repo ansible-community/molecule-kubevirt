@@ -71,15 +71,8 @@ jobs:
 
       - name: Update packages index
         run: |
-          sudo curl -SL https://gist.githubusercontent.com/ishad0w/788555191c7037e249a439542c53e170/raw/3822ba49241e6fd851ca1c1cbcc4d7e87382f484/sources.list -o /etc/apt/sources.list
-          
-          sudo rm /etc/apt/sources.list.d/microsoft-*
-          
-          # check if https://github.com/actions/virtual-environments/issues/5806 is source of the failing builds
-          echo 'APT::Get::Always-Include-Phased-Updates "true";' | sudo tee -a /etc/apt/apt.conf.d/99-phased-updates
           sudo apt-get update
-          sudo apt-get upgrade
-          sudo apt-get install libudev1=249.11-0ubuntu3.3 libudev-dev=249.11-0ubuntu3.3 -y
+
 
       - name: Install docker
         uses: nick-invision/retry@v2
