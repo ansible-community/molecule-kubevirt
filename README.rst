@@ -6,8 +6,8 @@ Molecule KubeVirt Plugin
    :target: https://badge.fury.io/py/molecule-kubevirt
    :alt: PyPI Package
 
-.. image:: https://github.com/jseguillon/molecule-kubevirt/workflows/tox/badge.svg
-   :target: https://github.com/jseguillon/molecule-kubevirt/actions
+.. image:: https://github.com/ansible-community/molecule-kubevirt/workflows/tox/badge.svg
+   :target: https://github.com/ansible-community/molecule-kubevirt/actions
 
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
    :target: https://github.com/python/black
@@ -267,7 +267,7 @@ License
 
 The `MIT`_ License.
 
-.. _`MIT`: https://github.com/jseguillon/molecule-kubevirt/blob/master/LICENSE
+.. _`MIT`: https://github.com/ansible-community/molecule-kubevirt/blob/master/LICENSE
 
 The logo is licensed under the `Creative Commons NoDerivatives 4.0 License`_.
 
