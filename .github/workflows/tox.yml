@@ -8,6 +8,8 @@ on:
     branches:  # any integration branch but not tag
       - "main"
   pull_request:
+    branches:
+      - "main"
   release:
     types:
       - published  # It seems that you can publish directly without creating
