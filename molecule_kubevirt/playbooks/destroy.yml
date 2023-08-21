@@ -4,9 +4,12 @@
   connection: local
   gather_facts: false
   no_log: "{{ molecule_no_log }}"
+  vars:
+    default_validate_certs: true
   tasks:
     - name: Delete VM
       k8s:
+        validate_certs: "{{ item.validate_certs | default(default_validate_certs) }}"
         state: absent
         kind: VirtualMachine
         name: "{{ item.name }}"
@@ -17,6 +20,7 @@
 
     - name: Delete cloud init
       k8s:
+        validate_certs: "{{ item.validate_certs | default(default_validate_certs) }}"
         state: absent
         kind: Secret
         name: "{{ item.name }}"
@@ -27,6 +31,7 @@
 
     - name: Delete ssh service
       k8s:
+        validate_certs: "{{ item.validate_certs | default(default_validate_certs) }}"
         state: absent
         kind: Service
         name: "{{ item.name }}"
