@@ -13,7 +13,7 @@ LOG = logger.get_logger(__name__)
     ("namespace", "vm_name", "secret_name", "user"),
     [
         ("kube-public", "instance-full", "instance-full", "notmolecule"),
-        ("default", "instance-almost-default", "instance-almost-default", "molecule"),
+        ("default", "almost-default", "almost-default", "molecule"),
         ("default", "instance-running-false", "", "molecule"),
     ],
 )
