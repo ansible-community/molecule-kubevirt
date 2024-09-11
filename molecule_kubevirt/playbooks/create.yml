@@ -136,19 +136,19 @@
               cpu: "{{ item.cpu_limit | default(item.domain.resources.limits.cpu) | default(omit) }}"
         # Define target VM specs
         template_spec: |-
-            domain: {{ item.domain | default({}) | combine(prepared_domain, recursive=True, list_merge='replace') }}
-            volumes: {{ target_volumes }}
-            networks: {{ target_networks }}
-            affinity: {{ item.affinity | default(omit) }}
-            dnsConfig: {{ item.dnsConfig | default(omit) }}
-            dnsPolicy: {{ item.dnsPolicy | default(omit) }}
-            hostname: {{ item.hostname | default(omit) }}
-            livenessProbe: {{ item.livenessProbe | default(omit) }}
-            nodeSelector: {{ item.nodeSelector | default(omit) }}
-            readinessProbe: {{ item.readinessProbe | default(omit) }}
-            subdomain: {{ item.subdomain | default(omit) }}
-            terminationGracePeriodSeconds: {{ item.terminationGracePeriodSeconds | default(default_termination_grace_perdiod) | int }}
-            tolerations: {{ item.tolerations | default(omit) }}
+          domain: {{ item.domain | default({}) | combine(prepared_domain, recursive=True, list_merge='replace') }}
+          volumes: {{ target_volumes }}
+          networks: {{ target_networks }}
+          affinity: {{ item.affinity | default(omit) }}
+          dnsConfig: {{ item.dnsConfig | default(omit) }}
+          dnsPolicy: {{ item.dnsPolicy | default(omit) }}
+          hostname: {{ item.hostname | default(omit) }}
+          livenessProbe: {{ item.livenessProbe | default(omit) }}
+          nodeSelector: {{ item.nodeSelector | default(omit) }}
+          readinessProbe: {{ item.readinessProbe | default(omit) }}
+          subdomain: {{ item.subdomain | default(omit) }}
+          terminationGracePeriodSeconds: {{ item.terminationGracePeriodSeconds | default(default_termination_grace_perdiod) | int }}
+          tolerations: {{ item.tolerations | default(omit) }}
       # Create VM
       k8s:
         state: present
@@ -229,6 +229,34 @@
           loop_control:
             label: "{{ item.name }}"
 
+    - name: Create ssh LoadBalancer Kubernetes Services
+      when: "item.ssh_service.type | default(default_ssh_service_type) == 'LoadBalancer'"
+      k8s:
+        state: present
+        wait: true
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ item.name }}"
+            namespace: "{{ item.namespace | default(default_namespace) }}"
+          # workaround https://stackoverflow.com/questions/63961938/ansible-variable-conversion-to-int-is-ignored
+          spec: "{{ spec | from_yaml }}"
+      register: load_balancer_services
+      loop: "{{ molecule_yml.platforms  }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        spec: |-
+          internalTrafficPolicy: Cluster
+          ports:
+            - port: 22
+              protocol: TCP
+              targetPort: 22
+          selector:
+            vm.cnv.io/name: "{{ item.name }}"
+          type: LoadBalancer
+
     - name: Get ip for VirtualMachineInstance for ssh access
       k8s_info:
         kind: VirtualMachineInstance
@@ -268,6 +296,8 @@
             {{- ((node_port_services.results | selectattr('item.name','==',item.name) | first)['result']['spec']['ports'] | first)['nodePort'] }}
           {%- elif svc_type == 'ClusterIP' -%}
             {{ (cluster_ip_services.results | selectattr('item.name','==',item.name) | first)['result']['spec']['clusterIP'] }}
+          {%- elif svc_type == 'LoadBalancer' -%}
+            {{ ((load_balancer_services.results | selectattr('item.name','==',item.name) | first)['result']['status']['loadBalancer']['ingress'] | first)['ip'] }}
           {%- endif -%}
       register: instance_config_dict
       loop: "{{ molecule_yml.platforms }}"
