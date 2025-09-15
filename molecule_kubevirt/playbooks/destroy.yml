@@ -5,66 +5,118 @@
   gather_facts: false
   no_log: "{{ molecule_no_log }}"
   vars:
-    default_namespace: "default"
+    default_namespace: default
 
   tasks:
-    - name: Load saved runtime platform info
-      slurp:
-        src: "{{ molecule_ephemeral_directory }}/platforms_rt.yml"
-      register: platforms_rt_raw
-
-    - name: Parse platform info
-      set_fact:
-        platforms_rt: "{{ platforms_rt_raw.content | b64decode | from_yaml }}"
-
-    - name: Delete VM
-      k8s:
-        state: absent
+    # --- VirtualMachines -----------------------------------------------------
+    - name: Gather VMs by label for each platform
+      k8s_info:
         api_version: kubevirt.io/v1
         kind: VirtualMachine
-        name: "{{ item.vm_name }}"
         namespace: "{{ item.namespace | default(default_namespace) }}"
-      loop: "{{ platforms_rt }}"
+        label_selectors:
+          - "vm.cnv.io/name={{ item.name }}"
+      register: _vm_info
+      loop: "{{ molecule_yml.platforms }}"
       loop_control:
-        label: "{{ item.vm_name }}"
+        label: "{{ item.namespace | default(default_namespace) }}:{{ item.name }}"
 
-    - name: Delete VMI
+    - name: Delete matched VirtualMachines
+      vars:
+        vms_to_delete: "{{ _vm_info.results | map(attribute='resources') | list | flatten(1) }}"
+      when: vms_to_delete | length > 0
       k8s:
-        state: absent
         api_version: kubevirt.io/v1
-        kind: VirtualMachineInstance
-        name: "{{ item.vm_name }}"
-        namespace: "{{ item.namespace | default(default_namespace) }}"
-      loop: "{{ platforms_rt }}"
-      loop_control:
-        label: "{{ item.vm_name }}"
-
-    - name: Delete Service
-      k8s:
+        kind: VirtualMachine
+        name: "{{ vm.metadata.name }}"
+        namespace: "{{ vm.metadata.namespace }}"
         state: absent
+        wait: true
+        wait_timeout: 120
+      loop: "{{ vms_to_delete }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.metadata.namespace }}: {{ vm.metadata.name }}"
+
+    # --- Services ------------------------------------------------------------
+    - name: Gather Services by label for each platform
+      k8s_info:
         api_version: v1
         kind: Service
-        name: "{{ item.vm_name }}"
         namespace: "{{ item.namespace | default(default_namespace) }}"
-      loop: "{{ platforms_rt }}"
+        label_selectors:
+          - "vm.cnv.io/name={{ item.name }}"
+      register: _svc_info
+      loop: "{{ molecule_yml.platforms }}"
       loop_control:
-        label: "{{ item.vm_name }}"
+        label: "{{ item.namespace | default(default_namespace) }}:{{ item.name }}"
 
-    - name: Delete Secret
+    - name: Delete matched Services
+      vars:
+        svcs_to_delete: "{{ _svc_info.results | map(attribute='resources') | list | flatten(1) }}"
+      when: svcs_to_delete | length > 0
       k8s:
+        api_version: v1
+        kind: Service
+        name: "{{ svc.metadata.name }}"
+        namespace: "{{ svc.metadata.namespace }}"
         state: absent
+      loop: "{{ svcs_to_delete }}"
+      loop_control:
+        loop_var: svc
+        label: "{{ svc.metadata.namespace }}: {{ svc.metadata.name }}"
+
+    # --- Secrets (cloud-init) -----------------------------------------------
+    - name: Gather Secrets by label for each platform
+      k8s_info:
         api_version: v1
         kind: Secret
-        name: "{{ item.vm_name }}"
         namespace: "{{ item.namespace | default(default_namespace) }}"
-      loop: "{{ platforms_rt }}"
+        label_selectors:
+          - "vm.cnv.io/name={{ item.name }}"
+      register: _sec_info
+      loop: "{{ molecule_yml.platforms }}"
       loop_control:
-        label: "{{ item.vm_name }}"
+        label: "{{ item.namespace | default(default_namespace) }}:{{ item.name }}"
 
-    - name: Delete SSH key pair
+    - name: Delete matched Secrets
+      vars:
+        secs_to_delete: "{{ _sec_info.results | map(attribute='resources') | list | flatten(1) }}"
+      when: secs_to_delete | length > 0
+      k8s:
+        api_version: v1
+        kind: Secret
+        name: "{{ sec.metadata.name }}"
+        namespace: "{{ sec.metadata.namespace }}"
+        state: absent
+      loop: "{{ secs_to_delete }}"
+      loop_control:
+        loop_var: sec
+        label: "{{ sec.metadata.namespace }}: {{ sec.metadata.name }}"
+
+    # --- Local files ---------------------------------------------------------
+    - name: Delete ssh private keys
       file:
         path: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
         state: absent
       loop: "{{ molecule_yml.platforms }}"
       loop_control:
         label: "{{ item.name }}"
+
+    - name: Delete ssh public keys
+      file:
+        path: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}.pub"
+        state: absent
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Remove molecule instance config (if present)
+      file:
+        path: "{{ molecule_instance_config }}"
+        state: absent
+
+    - name: Remove runtime platform info (if present)
+      file:
+        path: "{{ molecule_ephemeral_directory }}/platforms_rt.yml"
+        state: absent
