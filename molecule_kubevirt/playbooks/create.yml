@@ -4,29 +4,31 @@
   connection: local
   gather_facts: false
   no_log: "{{ molecule_no_log }}"
+
   vars:
     default_namespace: "default"
     default_runStrategy: "Always"
+
     default_user_molecule:
-      name: "molecule"
-      sudo:
-        - ALL=(ALL) NOPASSWD:ALL
+      name: molecule
+      sudo: [ "ALL=(ALL) NOPASSWD:ALL" ]
+
     default_vm_memory: "2Gi"
     default_vm_machine_type: "q35"
     default_vm_disk_image: "quay.io/kubevirt/fedora-cloud-container-disk-demo"
+
     default_ssh_timeout: 300
-    default_ssh_delay: 1
+    default_ssh_delay:   1
     default_pod_ip_retries: 60
-    default_pod_ip_delay: 1
+    default_pod_ip_delay:   1
     default_ssh_service_type: ClusterIP
     default_termination_grace_perdiod: 0
+
     default_boot_disk:
-      disk:
-        bus: virtio
+      disk: { bus: virtio }
       name: boot
     default_cloud_init_disk:
-      disk:
-        bus: virtio
+      disk: { bus: virtio }
       name: cloudinit
     default_interface:
       bridge: {}
@@ -35,262 +37,470 @@
     default_network:
       pod: {}
       name: default
-      model: virtio
+
+    #  NOTE: keep               ────────►  item.name  (inventory alias)
     ssh_key_path: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
+
   tasks:
-    - name: Create ssh key pair
-      openssh_keypair:
-        path: "{{ ssh_key_path }}"
-        size: 1024
-        type: rsa
-      loop: "{{ molecule_yml.platforms }}"
-      loop_control:
-        label: "{{ item.name }}"
+  # -----------------------------------------------------------------------
+  # 1. Build a runtime platform list, adding vm_name = <name>-<random>
+  # -----------------------------------------------------------------------
+  - name: Build runtime platform list with unique vm_name
+    set_fact:
+      platforms_rt: >-
+        {{ (platforms_rt | default([]))
+           + [ item | combine(
+                 {'vm_name': item.name ~ '-' ~
+                              lookup('password','/dev/null',
+                                     length=6, chars='ascii_lowercase')}
+               ) ] }}
+    loop: "{{ molecule_yml.platforms }}"
+    loop_control:
+      label: "{{ item.name }}"
 
-    - name: Create cloud init with ssh identity for molecule user
-      vars:
-        default_user_data: |-
-          users:
-            - {{ combined_molecule_user }}
-        user_molecule_authorized_keys:
-          ssh_authorized_keys:
-            - "{{ lookup('file', ssh_key_path + '.pub' ) }}"
-        # molecule user in user data is a merge of default, platform and forced ssh authorized key
-        combined_molecule_user: "{{ default_user_molecule | combine(item.user_molecule|default(None)) | combine (user_molecule_authorized_keys, list_merge='append') }}"
-        # user data is a merge of platform and molecule user
-        user_data: |-
-          {{ item.user_data | default({}) | from_yaml | combine(default_user_data | from_yaml, recursive=True, list_merge='prepend') }}
-      k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: "{{ item.name }}"
-            namespace: "{{ item.namespace | default(default_namespace) }}"
-          type: Opaque
-          stringData:
-            userdata: |-
-              #cloud-config
-              {{ user_data | to_nice_yaml }}
-      loop: "{{ molecule_yml.platforms  }}"
-      loop_control:
-        label: "{{ item.name }}"
+  # -----------------------------------------------------------------------
+  # 2. SSH key pair (kept on inventory alias, not vm_name)
+  # -----------------------------------------------------------------------
+  - name: Create ssh key pair
+    openssh_keypair:
+      path: "{{ ssh_key_path }}"
+      size: 1024
+      type: rsa
+    loop: "{{ platforms_rt }}"
+    loop_control:
+      label: "{{ item.name }}"
 
-    - name: Create virtual machines
-      vars:
-        default_container_disk_volume:
-          containerDisk:
-            image: "{{ item.image | default(default_vm_disk_image) }}"
-            path: "{{ item.image_path | default(omit) }}"
-            imagePullPolicy: "{{ item.image_pull_policy | default('IfNotPresent') }}"
-          name: "boot"
-        default_cloud_init_volume:
-          cloudInitNoCloud:
-            secretRef:
-              name: "{{ item.name }}"
-          name: cloudinit
+  # -----------------------------------------------------------------------
+  # 3. cloud-init Secret
+  # -----------------------------------------------------------------------
+  - name: Create cloud init with ssh identity for molecule user
+    vars:
+      default_user_data: |-
+        users:
+          - {{ combined_molecule_user }}
+        ssh_pwauth: false
+        packages:
+          - openssh-server
+        runcmd:
+          - systemctl enable --now ssh || systemctl enable --now sshd
 
-        # Merge device diskes: if one is named 'boot': use it against default driver defined
-        # If other disks are defined, append them
-        platform_boot_disk: "{{ (item.domain.devices.disks | default([]) | selectattr('name','==','boot')) | default(None) }}"
-        platform_other_disks: "{{ (item.domain.devices.disks | default([]) | rejectattr('name','==','boot')) | default(None) }}"
-        target_disks: |-
-          {{ platform_boot_disk | ternary(platform_boot_disk,[default_boot_disk]) +
-             platform_other_disks + [default_cloud_init_disk] }}
+      user_molecule_authorized_keys:
+        ssh_authorized_keys:
+          - "{{ lookup('file', ssh_key_path + '.pub') }}"
 
-        # Merge disk volumes: if one is named 'boot': use it against default driver defined
-        # If other volumes are defined, append them
-        platform_container_disk_volume: "{{ (item.volumes | default([]) | selectattr('name','==','boot')) | default(None) }}"
-        platform_other_default_cloud_init_volume: "{{ (item.volumes | default([]) | rejectattr('name','==','boot')) | default(None) }}"
-        target_volumes: |-
-          {{ platform_container_disk_volume | ternary(platform_container_disk_volume,[default_container_disk_volume]) +
-            platform_other_default_cloud_init_volume + [default_cloud_init_volume]}}
+      combined_molecule_user: >-
+        {{ default_user_molecule
+           | combine(item.user_molecule | default({}))
+           | combine(user_molecule_authorized_keys, list_merge='append') }}
 
-        # Merge interfaces: if one is named 'default': use it against default driver defined
-        # If other interfaces are defined, append them
-        platform_interface: "{{ (item.domain.devices.interfaces | default([]) | selectattr('name','==','default')) | default(None) }}"
-        platform_other_interface: "{{ (item.domain.devices.interfaces | default([]) | rejectattr('name','==','default')) | default(None) }}"
-        target_interfaces: |-
-          {{ platform_interface | ternary(platform_interface,[default_interface]) + platform_other_interface }}
+      # SAFER: normalize to an intermediate var, then branch on its type
+      user_data_raw: "{{ item.user_data | default({}) }}"
+      user_data_parsed: >-
+        {{
+          (user_data_raw is string)
+            | ternary(user_data_raw | from_yaml, user_data_raw)
+        }}
+      user_data: >-
+        {{
+          user_data_parsed
+          | combine(default_user_data | from_yaml, recursive=True, list_merge='prepend')
+        }}
+    k8s:
+      state: present
+      definition:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: "{{ item.vm_name }}"
+          namespace: "{{ item.namespace | default(default_namespace) }}"
+          labels:
+            vm.cnv.io/name: "{{ item.name }}"
+        type: Opaque
+        stringData:
+          userdata: |-
+            #cloud-config
+            {{ user_data | to_nice_yaml }}
+    loop: "{{ platforms_rt }}"
+    loop_control:
+      label: "{{ item.vm_name }}"
 
-        # Merge networks: if one is named 'default': use it against default driver defined
-        # If other networks are defined, append them
-        platform_network: "{{ (item.networks | default([]) | selectattr('name','==','default')) | default(None) }}"
-        platform_other_network: "{{ (item.networks | default([]) | rejectattr('name','==','default')) | default(None) }}"
-        target_networks: |-
-          {{ platform_network | ternary(platform_network,[default_network]) + platform_other_network }}
 
-        # Define target VM domain
-        prepared_domain:
-          devices:
-            autoattachGraphicsDevice: "{{ item.affinity | default(omit) }}"
-            disks: "{{ target_disks }}"
-            interfaces: "{{ target_interfaces }}"
-          resources:
-            requests:
-              memory: "{{ item.memory_request | default(item.domain.resources.requests.memory) | default(default_vm_memory) }}"
-              cpu: "{{ item.cpu_request | default(item.domain.resources.requests.cpu) | default(omit) }}"
-            limits:
-              memory: "{{ item.memory_limit | default(item.domain.resources.limits.memory) | default(omit) }}"
-              cpu: "{{ item.cpu_limit | default(item.domain.resources.limits.cpu) | default(omit) }}"
-        # Define target VM specs
-        template_spec: |-
-            domain: {{ item.domain | default({}) | combine(prepared_domain, recursive=True, list_merge='replace') }}
-            volumes: {{ target_volumes }}
-            networks: {{ target_networks }}
-            affinity: {{ item.affinity | default(omit) }}
-            dnsConfig: {{ item.dnsConfig | default(omit) }}
-            dnsPolicy: {{ item.dnsPolicy | default(omit) }}
-            hostname: {{ item.hostname | default(omit) }}
-            livenessProbe: {{ item.livenessProbe | default(omit) }}
-            nodeSelector: {{ item.nodeSelector | default(omit) }}
-            readinessProbe: {{ item.readinessProbe | default(omit) }}
-            subdomain: {{ item.subdomain | default(omit) }}
-            terminationGracePeriodSeconds: {{ item.terminationGracePeriodSeconds | default(default_termination_grace_perdiod) | int }}
-            tolerations: {{ item.tolerations | default(omit) }}
-      # Create VM
-      k8s:
-        state: present
-        definition:
-          apiVersion: kubevirt.io/v1
-          kind: VirtualMachine
-          metadata:
-            name: "{{ item.name }}"
-            namespace: "{{ item.namespace | default(default_namespace) }}"
-          spec:
-            running: "{{ item.running | default(omit) }}"
-            runStrategy: "{{ item.runStrategy | default(default_runStrategy) if item.running is not defined else omit }}"
-            dataVolumeTemplates: "{{ item.dataVolumeTemplates | default(omit) }}"
-            template:
-              metadata:
-                annotations: "{{ item.annotations | default({}) }}"
-                labels:
-                  vm.cnv.io/name: "{{ item.name }}"
-              # workaround https://stackoverflow.com/questions/63961938/ansible-variable-conversion-to-int-is-ignored
-              spec: "{{ template_spec | from_yaml }}"
-      loop: "{{ molecule_yml.platforms }}"
-      loop_control:
-        label: "{{ item.name }}"
+  # -----------------------------------------------------------------------
+  # 4. VirtualMachine
+  # -----------------------------------------------------------------------
+  - name: Create virtual machines
+    vars:
+      default_container_disk_volume:
+        containerDisk:
+          image: "{{ item.image | default(default_vm_disk_image) }}"
+          path:  "{{ item.image_path      | default(omit) }}"
+          imagePullPolicy: "{{ item.image_pull_policy | default('IfNotPresent') }}"
+        name: boot
+      default_cloud_init_volume:
+        cloudInitNoCloud:
+          secretRef: { name: "{{ item.vm_name }}" }
+        name: cloudinit
 
-    - name: Deal with ssh services
-      when: "item.ssh_service | default(None)"
-      block:
-        - name: Create ssh NodePort Kubernetes Services
-          when: "item.ssh_service.type | default(default_ssh_service_type) == 'NodePort'"
-          k8s:
-            state: present
-            definition:
-              apiVersion: v1
-              kind: Service
-              metadata:
-                name: "{{ item.name }}"
-                namespace: "{{ item.namespace | default(default_namespace) }}"
-              # workaround https://stackoverflow.com/questions/63961938/ansible-variable-conversion-to-int-is-ignored
-              spec: "{{ spec | from_yaml }}"
-          register: node_port_services
-          loop: "{{ molecule_yml.platforms  }}"
-          loop_control:
-            label: "{{ item.name }}"
-          vars:
-            spec: |-
+      platform_boot_disk:  "{{ (item.domain.devices.disks | default([])
+                                 | selectattr('name','==','boot')) | default([]) }}"
+      platform_other_disks: "{{ (item.domain.devices.disks | default([])
+                                  | rejectattr('name','==','boot')) | list }}"
+      target_disks: >-
+        {{ (platform_boot_disk | default([]) or [default_boot_disk])
+           + platform_other_disks + [default_cloud_init_disk] }}
+
+      platform_container_disk_volume: >-
+        {{ (item.volumes | default([])
+             | selectattr('name','==','boot')) | default([]) }}
+      platform_other_volumes: >-
+        {{ (item.volumes | default([])
+             | rejectattr('name','==','boot')) | list }}
+      target_volumes: >-
+        {{ (platform_container_disk_volume or [default_container_disk_volume])
+           + platform_other_volumes + [default_cloud_init_volume] }}
+
+      platform_interface: "{{ (item.domain.devices.interfaces | default([])
+                                | selectattr('name','==','default')) | default([]) }}"
+      platform_other_interface: "{{ (item.domain.devices.interfaces | default([])
+                                    | rejectattr('name','==','default')) | list }}"
+      target_interfaces: "{{ platform_interface or [default_interface] +
+                            platform_other_interface }}"
+
+      platform_network: "{{ (item.networks | default([])
+                              | selectattr('name','==','default')) | default([]) }}"
+      platform_other_network: "{{ (item.networks | default([])
+                                    | rejectattr('name','==','default')) | list }}"
+      target_networks: "{{ platform_network or [default_network] +
+                          platform_other_network }}"
+
+      prepared_domain:
+        devices:
+          disks: "{{ target_disks }}"
+          interfaces: "{{ target_interfaces }}"
+        resources:
+          requests:
+            memory: "{{ item.memory_request
+                        | default(item.domain.resources.requests.memory)
+                        | default(default_vm_memory) }}"
+            cpu: "{{ item.cpu_request
+                     | default(item.domain.resources.requests.cpu)
+                     | default(omit) }}"
+          limits:
+            memory: "{{ item.memory_limit
+                        | default(item.domain.resources.limits.memory)
+                        | default(omit) }}"
+            cpu: "{{ item.cpu_limit
+                     | default(item.domain.resources.limits.cpu)
+                     | default(omit) }}"
+
+      template_spec: |-
+        domain: {{ item.domain | default({}) | combine(prepared_domain,
+                   recursive=True, list_merge='replace') }}
+        volumes: {{ target_volumes }}
+        networks: {{ target_networks }}
+        affinity: {{ item.affinity | default(omit) }}
+        dnsConfig: {{ item.dnsConfig | default(omit) }}
+        dnsPolicy: {{ item.dnsPolicy | default(omit) }}
+        hostname: {{ item.hostname | default(omit) }}
+        livenessProbe: {{ item.livenessProbe | default(omit) }}
+        nodeSelector: {{ item.nodeSelector | default(omit) }}
+        readinessProbe: {{ item.readinessProbe | default(omit) }}
+        subdomain: {{ item.subdomain | default(omit) }}
+        terminationGracePeriodSeconds: {{ item.terminationGracePeriodSeconds
+                                           | default(default_termination_grace_perdiod)
+                                           | int }}
+        tolerations: {{ item.tolerations | default(omit) }}
+
+    k8s:
+      state: present
+      definition:
+        apiVersion: kubevirt.io/v1
+        kind: VirtualMachine
+        metadata:
+          name: "{{ item.vm_name }}"
+          namespace: "{{ item.namespace | default(default_namespace) }}"
+          labels:
+            vm.cnv.io/name: "{{ item.name }}"
+        spec:
+          running: "{{ item.running | default(omit) }}"
+          runStrategy: "{{ (item.running is defined)
+                            | ternary(omit, item.runStrategy
+                                      | default(default_runStrategy)) }}"
+          dataVolumeTemplates: "{{ item.dataVolumeTemplates | default(omit) }}"
+          template:
+            metadata:
+              annotations: "{{ item.annotations | default({}) }}"
+              labels: { vm.cnv.io/name: "{{ item.vm_name }}" }
+            spec: "{{ template_spec | from_yaml }}"
+    loop: "{{ platforms_rt }}"
+    loop_control:
+      label: "{{ item.vm_name }}"
+
+  # -----------------------------------------------------------------------
+  # 5. SSH Service (NodePort / ClusterIP)  +  fallback port
+  # -----------------------------------------------------------------------
+  - name: Deal with ssh services
+#    when: item.ssh_service is defined
+#    loop: "{{ platforms_rt }}"
+#    loop_control: { label: "{{ item.vm_name }}" }
+    block:
+      - name: Generate fallback nodePort if not defined
+        loop: "{{ platforms_rt }}"
+        loop_control: { label: "{{ plat.vm_name }}", loop_var: plat }
+        set_fact:
+          platforms_rt: >-
+            {{
+              (
+                platforms_rt
+                | rejectattr('vm_name', 'equalto', plat.vm_name) | list
+              )
+              +
+              [
+                plat
+                | combine(
+                    {
+                      'ssh_service':
+                        (plat.ssh_service | default({}))
+                        | combine({'nodePort': fallback_port | int})
+                    },
+                    recursive=True
+                  )
+              ]
+            }}
+        vars:
+          fallback_port: "{{ 30000 + (plat.vm_name | hash('md5') | int(base=16) % 1000) }}"
+        when:
+          - plat.ssh_service.type | default(default_ssh_service_type) == 'NodePort'
+          - plat.ssh_service.nodePort is not defined
+
+      - name: Ensure nodePort is not already in use
+        loop: "{{ platforms_rt }}"
+        loop_control: { label: "{{ plat.vm_name }}", loop_var: plat }
+        shell: |
+          kubectl get svc --all-namespaces -o jsonpath='{.items[].spec.ports[].nodePort}' \
+          | tr ' ' '\n' | grep -Fxq {{ plat.ssh_service.nodePort }}
+        register: port_conflict
+        failed_when: port_conflict.rc == 0
+        changed_when: false
+        when:
+          - plat.ssh_service.type | default(default_ssh_service_type) == 'NodePort'
+          - plat.ssh_service.nodePort is defined
+
+      - name: Debug nodePort type
+        loop: "{{ platforms_rt }}"
+        loop_control: { label: "{{ item.vm_name }}" }
+        when: item.ssh_service.nodePort is defined
+        debug:
+          msg: "nodePort={{ item.ssh_service.nodePort }} (type={{ item.ssh_service.nodePort | type_debug }})"
+      
+      - name: Assert NodePort is in valid range
+        loop: "{{ platforms_rt }}"
+        loop_control: { label: "{{ item.vm_name }}" }
+        when: item.ssh_service.nodePort is defined
+        assert:
+          that:
+            - (item.ssh_service.nodePort | int) >= 30000
+            - (item.ssh_service.nodePort | int) <= 32767
+      
+      - name: Create ssh NodePort Service
+        when: item.ssh_service.type | default(default_ssh_service_type) == 'NodePort'
+        loop: "{{ platforms_rt }}"
+        loop_control:
+          label: "{{ item.vm_name }}"
+        vars:
+          ssh_port_entry: >-
+            {{
+              {
+                'name': 'ssh',
+                'port': 22,
+                'protocol': 'TCP',
+                'targetPort': 22
+              }
+              | combine(
+                  (item.ssh_service.nodePort is defined)
+                  | ternary({'nodePort': (item.ssh_service.nodePort | int)}, {}),
+                  recursive=True
+                )
+            }}
+        k8s:
+          state: present
+          definition:
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: "{{ item.vm_name }}"
+              namespace: "{{ item.namespace | default(default_namespace) }}"
+              labels:
+                vm.cnv.io/name: "{{ item.name }}"
+            spec:
+              type: NodePort
+              selector:
+                vm.cnv.io/name: "{{ item.vm_name }}"
+              ports: "{{ [ssh_port_entry] }}"
+
+      - name: Create ssh ClusterIP Service
+        when: plat.ssh_service.type | default(default_ssh_service_type) == 'ClusterIP'
+        loop: "{{ platforms_rt }}"
+        loop_control: { label: "{{ plat.vm_name }}", loop_var: plat }
+        k8s:
+          state: present
+          definition:
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: "{{ plat.vm_name }}"
+              namespace: "{{ plat.namespace | default(default_namespace) }}"
+              labels:
+                vm.cnv.io/name: "{{ plat.name }}"
+            spec:
+              type: ClusterIP
+              selector:
+                vm.cnv.io/name: "{{ plat.vm_name }}"
+              clusterIP: "{{ plat.ssh_service.clusterIP | default(omit) }}"
               ports:
                 - port: 22
                   protocol: TCP
                   targetPort: 22
-                  {%- if item.ssh_service.nodePort | default(None) +%}
-                  nodePort: {{ item.ssh_service.nodePort | int }}
-                  {%- endif +%}
-              selector:
-                vm.cnv.io/name: "{{ item.name }}"
-              type: NodePort
 
-        - name: Create ssh ClusterIP Kubernetes Services
-          when: "item.ssh_service.type | default(default_ssh_service_type) == 'ClusterIP'"
-          k8s:
-            state: present
-            definition:
-              apiVersion: v1
-              kind: Service
-              metadata:
-                name: "{{ item.name }}"
-                namespace: "{{ item.namespace | default(default_namespace) }}"
-              spec:
-                clusterIP: "{{ item.ssh_service.clusterIP | default(omit) }}"
-                ports:
-                  - port: 22
-                    protocol: TCP
-                    targetPort: 22
-                selector:
-                  vm.cnv.io/name: "{{ item.name }}"
-                type: ClusterIP
-          register: cluster_ip_services
-          loop: "{{ molecule_yml.platforms  }}"
-          loop_control:
-            label: "{{ item.name }}"
+  # -----------------------------------------------------------------------
+  # 6. Get VM IP / build instance-config
+  # -----------------------------------------------------------------------
+  - name: Get ip for VirtualMachineInstance for ssh access
+    k8s_info:
+      kind: VirtualMachineInstance
+      namespace: "{{ item.namespace | default(default_namespace) }}"
+      name: "{{ item.vm_name }}"
+    loop: "{{ platforms_rt }}"
+    register: virtual_machine_info
+    retries: "{{ item.pod_ip_retries | default(default_pod_ip_retries) }}"
+    delay:   "{{ item.pod_ip_delay   | default(default_pod_ip_delay) }}"
+    until: virtual_machine_info.resources[0].status.interfaces[0].ipAddress is defined
+    when:
+      - item.ssh_service is not defined
+      - item.runStrategy | default(default_runStrategy) != 'Halted'
+      - item.running | default(true)
 
-    - name: Get ip for VirtualMachineInstance for ssh access
-      k8s_info:
-        kind: VirtualMachineInstance
-        namespace: "{{ item.namespace | default(default_namespace) }}"
-        name: "{{ item.name }}"
-      loop: "{{ molecule_yml.platforms }}"
-      loop_control:
-        label: "{{ item.name }}"
-      register: virtual_machine_info
-      retries: "{{ item.pod_ip_retries | default(default_pod_ip_retries) }}"
-      delay: "{{ item.pod_ip_delay | default(default_pod_ip_delay) }}"
-      until: "virtual_machine_info.resources[0].status.interfaces[0].ipAddress | default(None)"
-      when:
-        - item.ssh_service is not defined
-        - item.runStrategy | default(default_runStrategy) != 'Halted'
-        - item.running|default(None) != false
+  - name: Populate instance config dict
+    vars:
+      # Connection mode derived from platform config
+      conn_type: "{{ item.ssh_service.type | default(None) }}"
 
-    - name: Populate instance config dict
-      set_fact:
-        instance_conf_dict:
-          # if not running, ssh access will not be tested
-          ssh_test: "{{ item.runStrategy | default(default_runStrategy) != 'Halted' and item.running|default(None) != false }}"
-          instance: "{{ item.name }}"
-          address: "{{ ssh_service_address }}"
-          user: "{{ item.user_molecule.name | default(default_user_molecule.name) }}"
-          port: "22"
-          identity_file: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
-      vars:
-        vmi: "{{ virtual_machine_info.results | selectattr('item.name','==',item.name) | first }}"
-        # Also: should get a 'local node port' for nodePort kind usage for example
-        ssh_service_address: >-
-          {%- set svc_type = item.ssh_service.type | default(None) -%}
-          {%- if not svc_type -%}
-            {{ ((vmi['resources'] |first)['status']['interfaces'] | first)['ipAddress'] }}
-          {%- elif svc_type == 'NodePort' -%}
-            {{ item.ssh_service.nodePort_host | default('localhost') }}:
-            {{- ((node_port_services.results | selectattr('item.name','==',item.name) | first)['result']['spec']['ports'] | first)['nodePort'] }}
-          {%- elif svc_type == 'ClusterIP' -%}
-            {{ (cluster_ip_services.results | selectattr('item.name','==',item.name) | first)['result']['spec']['clusterIP'] }}
-          {%- endif -%}
-      register: instance_config_dict
-      loop: "{{ molecule_yml.platforms }}"
-      loop_control:
-        label: "{{ item.name }}"
+      # Only query the VMI when NOT using a Service (direct pod IP)
+      vmi: >-
+        {{ (virtual_machine_info.results
+              | selectattr('item.vm_name','==',item.vm_name) | first)
+           if not conn_type else omit }}
 
-    - name: Convert instance config dict to a list
-      set_fact:
-        instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
+      # Resolve host based on the connection mode
+      # - No service: use VMI IP
+      # - NodePort:  use nodePort_host (default localhost)
+      # - ClusterIP: use Service DNS: <svc>.<ns>
+      ssh_host: >-
+        {{
+          (
+            (vmi.resources[0].status.interfaces | first).ipAddress
+          ) if not conn_type else
+          (
+            item.ssh_service.nodePort_host | default('localhost')
+            if conn_type == 'NodePort' else
+            item.vm_name ~ '.' ~ (item.namespace | default(default_namespace))
+          )
+        | trim }}
 
-    - name: Ssh access test
-      wait_for:
-        timeout: "{{ item.ssh_timeout | default(default_ssh_timeout) }}"
-        port: "{{ item.port | default('22') }}"
-        host: "{{ item.address }}"
-        delay: "{{ item.ssh_delay | default(default_ssh_delay) }}"
-      loop: "{{ instance_conf | default([]) }}"
-      loop_control:
-        label: "{{ item.instance }} -> {{ item.address }} timeout={{ item.ssh_timeout | default(default_ssh_timeout) }}"
-      when: "item.ssh_test"
+      # Resolve port based on the connection mode
+      # - No service or ClusterIP: port 22
+      # - NodePort: use the computed/provided nodePort
+      ssh_port: >-
+        {{
+          (
+            '22'
+          ) if not conn_type else
+          (
+            (item.ssh_service.nodePort | string)
+            if conn_type == 'NodePort' else
+            '22'
+          )
+        | trim }}
 
-    - name: Dump instance config
-      copy:
-        content: "{{ instance_conf | to_json | from_json | to_yaml }}"
-        dest: "{{ molecule_instance_config }}"
-        mode: 0600
+    set_fact:
+      instance_conf_dict:
+        ssh_test: "{{ item.runStrategy | default(default_runStrategy) != 'Halted'
+                     and item.running | default(true) }}"
+        instance: "{{ item.name }}"
+        user: "{{ item.user_molecule.name | default(default_user_molecule.name) }}"
+        address: "{{ ssh_host }}"
+        port: "{{ ssh_port }}"
+        identity_file: "{{ molecule_ephemeral_directory }}/identity_{{ item.name }}"
+    loop: "{{ platforms_rt }}"
+    register: instance_config_dict
+    loop_control:
+      label: "{{ item.vm_name }}"
+
+  - name: Convert instance config dict to list
+    set_fact:
+      instance_conf: "{{ instance_config_dict.results
+                         | map(attribute='ansible_facts.instance_conf_dict')
+                         | list }}"
+
+  - name: Parse host and port from address
+    set_fact:
+      ssh_test_host: "{{ ic.address.split(':')[0] }}"
+      ssh_test_port: "{{ ic.address.split(':')[1] | default('22') }}"
+    loop: "{{ instance_conf }}"
+    loop_control: { loop_var: ic }
+    when: "':' in ic.address"
+
+  # -----------------------------------------------------------------------
+  # 7. SSH access test (fast-fail and visible) + clean summary (no jmespath)
+  # -----------------------------------------------------------------------
+  - name: Ssh access test (fast-fail and visible)
+    wait_for:
+      host: "{{ ic.address }}"
+      port: "{{ ic.port | int }}"
+      timeout: "{{ ic.timeout | default(default_ssh_timeout) }}"
+    loop: "{{ instance_conf }}"
+    loop_control:
+      loop_var: ic
+      label: "{{ ic.instance }} -> {{ ic.address }}:{{ ic.port }}"
+    register: ssh_wait
+    failed_when: false
+    changed_when: false
+
+  - name: Collect unreachable SSH targets (no jmespath)
+    set_fact:
+      ssh_unreachable: >-
+        {{ (ssh_unreachable | default([]))
+           + [ {
+                 'instance': res.item.instance,
+                 'addr':     res.item.address,
+                 'port':     res.item.port,
+                 'msg':      res.msg | default('')
+               } ] }}
+    loop: "{{ ssh_wait.results | default([]) }}"
+    loop_control:
+      loop_var: res
+    when: res.failed | default(false)
+
+  - name: Show unreachable SSH targets (if any)
+    when: (ssh_unreachable | default([])) | length > 0
+    debug:
+      msg: "{{ ssh_unreachable }}"
+
+  - name: Fail if any SSH targets are unreachable
+    when: (ssh_unreachable | default([])) | length > 0
+    fail:
+      msg: >-
+        {{ (ssh_unreachable | map(attribute='instance') | list) | join(', ') }}
+        were unreachable via SSH. See the previous task for details.
+
+  - name: Dump instance config
+    copy:
+      content: "{{ instance_conf | to_nice_yaml }}"
+      dest: "{{ molecule_instance_config }}"
+      mode: "0600"
+
+  - name: Save runtime platform info
+    copy:
+      content: "{{ platforms_rt | to_nice_yaml }}"
+      dest: "{{ molecule_ephemeral_directory }}/platforms_rt.yml"
+      mode: "0600"
