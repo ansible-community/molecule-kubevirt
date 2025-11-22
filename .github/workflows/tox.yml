@@ -85,7 +85,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           command: |
-            curl -LO https://storage.googleapis.com/kubernetes-release/release/${{ matrix.KUBERNETES_VERSION }}/bin/linux/amd64/kubectl; chmod +x ./kubectl
+            curl -LO https://dl.k8s.io/release/${{ matrix.KUBERNETES_VERSION }}/bin/linux/amd64/kubectl
             sudo install kubectl /usr/local/bin
         if: ${{ contains(matrix.tox_env, 'py') }}
 
