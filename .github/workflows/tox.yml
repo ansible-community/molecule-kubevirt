@@ -27,12 +27,15 @@ jobs:
         include:
           - tox_env: lint
           # - tox_env: docs
-          - tox_env: py310-ansible_7
-            PYTHON_BASE_IMAGE: python:3.10
-            KUBERNETES_VERSION: v1.22.2
-          - tox_env: py310-ansible_2
-            PYTHON_BASE_IMAGE: python:3.9
-            KUBERNETES_VERSION: v1.22.2
+          - tox_env: py311
+            PYTHON_BASE_IMAGE: python:3.11
+            KUBERNETES_VERSION: v1.33.0
+          - tox_env: py312
+            PYTHON_BASE_IMAGE: python:3.12
+            KUBERNETES_VERSION: v1.33.0
+          - tox_env: py313
+            PYTHON_BASE_IMAGE: python:3.13
+            KUBERNETES_VERSION: v1.33.0
           - tox_env: packaging
 
     steps:
@@ -113,7 +116,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           command: |
-            export VERSION=v0.52.0
+            export VERSION=v1.6.3
             kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/$VERSION/kubevirt-operator.yaml
             kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/$VERSION/kubevirt-cr.yaml
             cat <<EOF |kubectl apply -f -
@@ -140,7 +143,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           command: |
-            export VERSION=v0.52.0
+            export VERSION=v1.6.3
             export ARCH=linux-amd64
             curl -L -o virtctl https://github.com/kubevirt/kubevirt/releases/download/$VERSION/virtctl-$VERSION-linux-amd64
             chmod +x virtctl
@@ -149,7 +152,7 @@ jobs:
 
       - name: Install KubeVirt's CDI
         run: |
-          export VERSION=v1.48.0
+          export VERSION=v1.63.1
           kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-operator.yaml
           kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml
 
