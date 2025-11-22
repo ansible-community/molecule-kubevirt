@@ -358,7 +358,7 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v5
         with:
           name: molecule-kubevirt-${{ matrix.tox_env }}-${{ github.run_id }}
           path: /tmp/molecule-kubevirt/logs
