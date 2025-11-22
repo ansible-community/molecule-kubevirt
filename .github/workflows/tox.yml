@@ -95,11 +95,11 @@ jobs:
           sudo install minikube-linux-amd64 /usr/local/bin/minikube
           minikube start
 
-      - name: Install kubevirt packages requirements
-        run: |
-          sudo apt install -y qemu qemu-kvm libvirt-daemon libvirt-clients bridge-utils virt-manager libvirt-daemon-system
-          sudo systemctl restart libvirtd
-        if: ${{ contains(matrix.tox_env, 'py') }}
+      # - name: Install kubevirt packages requirements
+      #   run: |
+      #     sudo apt install -y qemu qemu-kvm libvirt-daemon libvirt-clients bridge-utils virt-manager libvirt-daemon-system
+      #     sudo systemctl restart libvirtd
+      #   if: ${{ contains(matrix.tox_env, 'py') }}
 
       - name: Tweak ubuntu apparmor for Kubevirt
         run: |
