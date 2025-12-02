@@ -4,8 +4,17 @@ import re
 import shutil
 
 from molecule import logger
-from molecule.test.conftest import change_dir_to
-from molecule.util import run_command
+
+from molecule._version import version_tuple as molecule_version_tuple
+from pathlib import Path
+if molecule_version_tuple < (25, 1):
+    from molecule.util import run_command
+else:
+    from molecule.app import get_app
+
+    run_command = get_app(Path()).run_command
+
+from .conftest import change_dir
 
 LOG = logger.get_logger(__name__)
 
@@ -17,7 +26,7 @@ def test_command_init_and_test_scenario(tmp_path: pathlib.Path, DRIVER: str) -> 
 
     scenario_name = "default"
 
-    with change_dir_to(tmp_path):
+    with  change_dir(tmp_path):
 
         scenario_directory = tmp_path / "molecule" / scenario_name
         cmd = [
