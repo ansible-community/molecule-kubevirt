@@ -1,11 +1,11 @@
-ARG PYTHON_BASE_IMAGE
+ARG PYTHON_BASE_IMAGE=python:3.11
 
 FROM ${PYTHON_BASE_IMAGE}
 ARG KUBERNETES_VERSION
 
 RUN python3 -m pip install tox
 
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl && \
+RUN curl -LO curl -LO https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl && \
       chmod +x kubectl && mv kubectl /usr/bin
 
 

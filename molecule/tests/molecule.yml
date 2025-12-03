@@ -28,7 +28,7 @@ platforms:
           preallocation: true
           source:
             http:
-              url: https://download.fedoraproject.org/pub/fedora/linux/releases/35/Cloud/x86_64/images/Fedora-Cloud-Base-35-1.2.x86_64.raw.xz
+              url: https://download.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-AmazonEC2-43-1.6.x86_64.raw.xz
     annotations:
       cni.projectcalico.org/ipAddrs: "[\"10.244.25.25\"]"
     domain:
@@ -47,12 +47,12 @@ platforms:
             model: e1000
             ports:
               - port: 22
-          # add another interface
-          - name: multus
-            bridge: {}
-            model: virtio
-            ports:
-              - port: 22
+          # # add another interface
+          # - name: multus
+          #   bridge: {}
+          #   model: virtio
+          #   ports:
+          #     - port: 22
         disks:
           # override default boot device disk
           - name: boot
@@ -75,10 +75,10 @@ platforms:
       # override default network
       - name: default
         pod: {}
-      # add a second network
-      - name: multus
-        multus:
-          networkName: macvlan-conf
+      # # add a second network
+      # - name: multus
+      #   multus:
+      #     networkName: macvlan-conf
     # custom cloud-config - see cloud-config doc
     user_data:
       # add a second user
@@ -111,7 +111,7 @@ platforms:
         - ALL=(ALL) NOPASSWD:/bin/mysql
     # Use for creation test only: non running VMs specs can be tested without waiting ssh to be ready.
     # Requires ssh_service to be activated since VM won't get IP from non created Pod
-    runStrategy: Halted
+    runStrategy: Always
 
   - name: instance-almost-default
     ssh_service:

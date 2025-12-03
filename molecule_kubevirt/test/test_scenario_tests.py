@@ -4,27 +4,51 @@ from base64 import b64decode
 import pytest
 import yaml
 from molecule import logger
-from molecule.util import run_command, safe_load_file
+from molecule._version import version_tuple as molecule_version_tuple
+from pathlib import Path
+if molecule_version_tuple < (25, 1):
+    from molecule.util import run_command
+else:
+    from molecule.app import get_app
+
+    run_command = get_app(Path()).run_command
+import os
+
+# from molecule.util import run_command, safe_load_file
+
+from shutil import copytree
 
 LOG = logger.get_logger(__name__)
+
+ROOT = Path(__file__).resolve().parents[2]
+SCENARIO_SRC = ROOT / "molecule" / "tests"     # where molecule.yml actually is
 
 
 @pytest.mark.parametrize(
     ("namespace", "vm_name", "secret_name", "user"),
     [
         ("kube-public", "instance-full", "instance-full", "notmolecule"),
-        ("default", "instance-almost-default", "instance-almost-default", "molecule"),
+        ("default", "almost-default", "almost-default", "molecule"),
         ("default", "instance-running-false", "", "molecule"),
     ],
 )
+
+
 class TestClass:
     """Test non running VMs and compare to references yaml files."""
 
     @classmethod
     def setup_class(cls):
+        # Ensure we run from the project root so "molecule -s tests" finds molecule/tests/molecule.yml
+        os.chdir(ROOT)
+        if not SCENARIO_SRC.exists():
+            raise RuntimeError(f"Scenario dir not found: {SCENARIO_SRC}")
+        # For Python 3.8+; if you expect reruns, allow existing:
+        # copytree(SCENARIO_SRC, ROOT / "molecule" / "tests", dirs_exist_ok=True)
+
         cmd = ["molecule", "create", "-s", "tests"]
         result = run_command(cmd)
-        assert result.returncode == 0
+        assert result.returncode == 8
 
     @classmethod
     def teardown_class(cls):

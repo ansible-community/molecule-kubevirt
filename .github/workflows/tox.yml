@@ -27,24 +27,15 @@ jobs:
         include:
           - tox_env: lint
           # - tox_env: docs
-          - tox_env: py36-ansible_2
-            PYTHON_BASE_IMAGE: python:3.6
-            KUBERNETES_VERSION: v1.22.2
-          - tox_env: py36-ansible_2-devel
-            PYTHON_BASE_IMAGE: python:3.6
-            KUBERNETES_VERSION: v1.22.2
-          - tox_env: py37-ansible_3
-            PYTHON_BASE_IMAGE: python:3.7
-            KUBERNETES_VERSION: v1.22.2
-          - tox_env: py38-ansible_4
-            PYTHON_BASE_IMAGE: python:3.8
-            KUBERNETES_VERSION: v1.22.2
-          - tox_env: py39-ansible_2
-            PYTHON_BASE_IMAGE: python:3.9
-            KUBERNETES_VERSION: v1.22.2
-          - tox_env: py39-ansible_2-devel
-            PYTHON_BASE_IMAGE: python:3.9
-            KUBERNETES_VERSION: v1.22.2
+          - tox_env: py311
+            PYTHON_BASE_IMAGE: python:3.11
+            KUBERNETES_VERSION: v1.33.0
+          - tox_env: py312
+            PYTHON_BASE_IMAGE: python:3.12
+            KUBERNETES_VERSION: v1.33.0
+          - tox_env: py313
+            PYTHON_BASE_IMAGE: python:3.13
+            KUBERNETES_VERSION: v1.33.0
           - tox_env: packaging
 
     steps:
@@ -94,7 +85,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           command: |
-            curl -LO https://storage.googleapis.com/kubernetes-release/release/${{ matrix.KUBERNETES_VERSION }}/bin/linux/amd64/kubectl; chmod +x ./kubectl
+            curl -LO https://dl.k8s.io/release/${{ matrix.KUBERNETES_VERSION }}/bin/linux/amd64/kubectl
             sudo install kubectl /usr/local/bin
         if: ${{ contains(matrix.tox_env, 'py') }}
 
@@ -104,20 +95,20 @@ jobs:
           sudo install minikube-linux-amd64 /usr/local/bin/minikube
           minikube start
 
-      - name: Install kubevirt packages requirements
-        run: |
-          sudo apt install -y qemu qemu-kvm libvirt-daemon libvirt-clients bridge-utils virt-manager libvirt-daemon-system
-          sudo systemctl restart libvirtd
-        if: ${{ contains(matrix.tox_env, 'py') }}
+      # - name: Install kubevirt packages requirements
+      #   run: |
+      #     sudo apt install -y qemu qemu-kvm libvirt-daemon libvirt-clients bridge-utils virt-manager libvirt-daemon-system
+      #     sudo systemctl restart libvirtd
+      #   if: ${{ contains(matrix.tox_env, 'py') }}
 
-      - name: Tweak ubuntu apparmor for Kubevirt
-        run: |
-          # See : https://github.com/kubevirt/kubevirt/issues/4303
-          # Add one magic line and reload service
-          tweak_qemu_apprarmor="$(head -n -1 /etc/apparmor.d/usr.sbin.libvirtd; echo "  /usr/libexec/qemu-kvm rmix,"; tail -1 /etc/apparmor.d/usr.sbin.libvirtd)"
-          echo "$tweak_qemu_apprarmor" | sudo dd of=/etc/apparmor.d/usr.sbin.libvirtd
-          sudo systemctl reload apparmor.service
-        if: ${{ contains(matrix.tox_env, 'py') }}
+      # - name: Tweak ubuntu apparmor for Kubevirt
+      #   run: |
+      #     # See : https://github.com/kubevirt/kubevirt/issues/4303
+      #     # Add one magic line and reload service
+      #     tweak_qemu_apprarmor="$(head -n -1 /etc/apparmor.d/usr.sbin.libvirtd; echo "  /usr/libexec/qemu-kvm rmix,"; tail -1 /etc/apparmor.d/usr.sbin.libvirtd)"
+      #     echo "$tweak_qemu_apprarmor" | sudo dd of=/etc/apparmor.d/usr.sbin.libvirtd
+      #     sudo systemctl reload apparmor.service
+      #   if: ${{ contains(matrix.tox_env, 'py') }}
 
       - name: Install kubevirt
         uses: nick-invision/retry@v2
@@ -125,7 +116,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           command: |
-            export VERSION=v0.52.0
+            export VERSION=v1.6.3
             kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/$VERSION/kubevirt-operator.yaml
             kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/$VERSION/kubevirt-cr.yaml
             cat <<EOF |kubectl apply -f -
@@ -152,7 +143,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           command: |
-            export VERSION=v0.52.0
+            export VERSION=v1.6.3
             export ARCH=linux-amd64
             curl -L -o virtctl https://github.com/kubevirt/kubevirt/releases/download/$VERSION/virtctl-$VERSION-linux-amd64
             chmod +x virtctl
@@ -161,7 +152,7 @@ jobs:
 
       - name: Install KubeVirt's CDI
         run: |
-          export VERSION=v1.48.0
+          export VERSION=v1.63.1
           kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-operator.yaml
           kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml
 
@@ -282,7 +273,7 @@ jobs:
                     image: molecule_kubevirt_${{ matrix.tox_env }}
                     imagePullPolicy: IfNotPresent
                     command: [ "/bin/bash", "-c", "--" ]
-                    args: ["(tox -e ${{ matrix.tox_env }} -c /opt/molecule_kubevirt/tox.ini ; kubectl create configmap molecule-result --from-literal exitCode=\$?); kubectl delete configmap molecule-job-running"]
+                    args: ["(cd /opt/molecule_kubevirt && tox -e ${{ matrix.tox_env }} -c /opt/molecule_kubevirt/tox.ini ; kubectl create configmap molecule-result --from-literal exitCode=\$?); kubectl delete configmap molecule-job-running"]
                     env:
                       - name: PYTEST_REQPASS
                         value: "5"
@@ -367,7 +358,7 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v5
         with:
           name: molecule-kubevirt-${{ matrix.tox_env }}-${{ github.run_id }}
           path: /tmp/molecule-kubevirt/logs
